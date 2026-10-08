@@ -1,0 +1,859 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#8e1f3d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>LR Farms Rose Availability</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: phone-first stack. Clean shareable catalogue card on top, staff tools (orders, stock) behind tabs. */
+:root{
+  --bg:#fbf8f8; --surface:#ffffff; --sunk:#f3eded; --line:#e6dcdd;
+  --fg:#2a1f22; --muted:#7b6a6e;
+  --wine:#8e1f3d; --wine-soft:#f6e3e8; --on-wine:#ffffff;
+  --leaf:#2f6b3f; --leaf-soft:#e2f0e5; --amber:#9a5b00; --amber-soft:#fbefd9; --red:#b3261e; --red-soft:#fbe4e2;
+  --display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body:"Figtree", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --r:12px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#181214; --surface:#221a1d; --sunk:#2b2124; --line:#3a2d31;
+  --fg:#f3e9eb; --muted:#b39ea4;
+  --wine:#e2809a; --wine-soft:#3d2128; --on-wine:#1c0f13;
+  --leaf:#82c995; --leaf-soft:#1d3324; --amber:#e8b45e; --amber-soft:#3a2c14; --red:#f2a199; --red-soft:#3e1d1b;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#181214; --surface:#221a1d; --sunk:#2b2124; --line:#3a2d31;
+  --fg:#f3e9eb; --muted:#b39ea4;
+  --wine:#e2809a; --wine-soft:#3d2128; --on-wine:#1c0f13;
+  --leaf:#82c995; --leaf-soft:#1d3324; --amber:#e8b45e; --amber-soft:#3a2c14; --red:#f2a199; --red-soft:#3e1d1b;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.45;padding-inline:16px;padding-top:calc(12px + env(safe-area-inset-top,0px));padding-bottom:calc(40px + env(safe-area-inset-bottom,0px));margin:0}
+.wrap{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--wine);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+
+/* tabs */
+.tabs{display:flex;gap:4px;background:var(--sunk);padding:4px;border-radius:999px;position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
+.tabs button{flex:1;border:0;background:transparent;padding:9px 6px;border-radius:999px;font-weight:600;color:var(--muted);font-size:14px}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.tabs .count{display:inline-block;min-width:20px;padding:0 6px;border-radius:999px;background:var(--wine);color:var(--on-wine);font-size:12px;margin-left:4px}
+
+/* catalogue */
+.sheet{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px 16px 14px;display:flex;flex-direction:column;gap:14px}
+.sheet-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;border-bottom:2px solid var(--wine);padding-bottom:12px}
+.brand{font-family:var(--display);font-size:28px;line-height:1.05;color:var(--wine)}
+.brand-sub{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-top:4px}
+.asof{text-align:right;font-size:13px;color:var(--muted)}
+.asof b{display:block;color:var(--fg);font-size:15px}
+.legend{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.card{display:flex;flex-direction:column;gap:8px;min-width:0}
+.card.out{opacity:.45}
+.photo{position:relative;aspect-ratio:1/1;max-width:100%;border-radius:var(--r);overflow:hidden;background:var(--sunk);border:0;padding:0;display:block;width:100%}
+.photo img{width:100%;height:100%;object-fit:cover;display:block}
+.photo svg{width:100%;height:100%;display:block}
+.photo .edit{position:absolute;right:6px;bottom:6px;background:rgba(0,0,0,.6);color:#fff;font-size:11.5px;font-weight:600;padding:4px 8px;border-radius:999px}
+.photo .busy{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.45);color:#fff;font-weight:600;font-size:13px}
+.badge{position:absolute;left:6px;top:6px;background:var(--surface);color:var(--fg);font-size:11.5px;font-weight:700;padding:3px 8px;border-radius:999px}
+.badge.sold{background:var(--fg);color:var(--bg)}
+.vname{font-family:var(--display);font-size:17px;line-height:1.1;display:flex;justify-content:space-between;gap:6px;align-items:baseline}
+.vname small{font-family:var(--body);font-size:12.5px;color:var(--muted);font-weight:600;white-space:nowrap}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{font-size:12.5px;border:1px solid var(--line);border-radius:6px;padding:2px 6px;background:var(--bg);white-space:nowrap}
+.chip b{font-weight:700;margin-left:3px}
+.chip.low b{color:var(--amber)}
+.sheet-foot{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:10px;font-size:13px;color:var(--muted)}
+.sheet-foot b{color:var(--fg)}
+
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.toggle{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--muted);font-weight:500}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 12px;font-weight:600;font-size:14px}
+.btn.primary{background:var(--wine);border-color:var(--wine);color:var(--on-wine)}
+.btn.danger{color:var(--red);border-color:var(--red-soft)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+.btn:disabled{opacity:.5;cursor:default}
+.hint{font-size:13px;color:var(--muted)}
+.empty{padding:28px 12px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:var(--r)}
+.notice{font-size:13.5px;border-radius:10px;padding:10px 12px;background:var(--amber-soft);color:var(--fg)}
+.err{color:var(--red);font-size:13.5px;font-weight:600}
+.ok{color:var(--leaf);font-size:13.5px;font-weight:600}
+
+/* panels */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:14px}
+.panel h2{font-size:20px}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font-size:12.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.field input,.field select,.field textarea{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:9px 10px;width:100%;min-width:0}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.line{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1.2fr) 80px 36px;gap:8px;align-items:end}
+.line .x{height:40px;border:0;background:var(--sunk);border-radius:10px;font-size:18px;color:var(--muted)}
+.line .left{font-size:12px;color:var(--muted);grid-column:1/-1;margin-top:-4px}
+.line .left.bad{color:var(--red);font-weight:600}
+
+.olist{display:flex;flex-direction:column;gap:10px}
+.order{border:1px solid var(--line);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:8px;background:var(--bg)}
+.order.cancelled,.order.archived{opacity:.55}
+.ohead{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;flex-wrap:wrap}
+.ohead h3{font-size:16px}
+.ometa{font-size:12.5px;color:var(--muted)}
+.pill{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;text-transform:uppercase;letter-spacing:.04em}
+.pill.open{background:var(--wine-soft);color:var(--wine)}
+.pill.dispatched{background:var(--leaf-soft);color:var(--leaf)}
+.pill.cancelled{background:var(--red-soft);color:var(--red)}
+.pill.archived{background:var(--sunk);color:var(--muted)}
+.oitems{font-size:14px;display:flex;flex-wrap:wrap;gap:4px 12px}
+.oactions{display:flex;gap:6px;flex-wrap:wrap}
+.oactions .btn{padding:5px 10px;font-size:13px}
+.filters{display:flex;gap:6px;flex-wrap:wrap}
+.filters button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;font-size:13px;font-weight:600;color:var(--muted)}
+.filters button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r)}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:14px}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:center}
+th{background:var(--sunk);font-size:12.5px;color:var(--muted);font-weight:700}
+td:first-child,th:first-child{text-align:left;position:sticky;left:0;background:var(--surface)}
+th:first-child{background:var(--sunk)}
+td input{width:62px;text-align:center;border:1px solid var(--line);border-radius:8px;padding:5px 2px;background:var(--bg)}
+td .dot{display:inline-block;width:12px;height:12px;border-radius:50%;vertical-align:-1px;margin-right:6px;border:1px solid var(--line)}
+tfoot td{font-weight:700;background:var(--sunk)}
+tfoot td:first-child{background:var(--sunk)}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--red-soft);padding:8px 10px;border-radius:10px;font-size:13.5px}
+
+/* catalogue table */
+.ctable{width:100%;min-width:0;border-collapse:collapse;font-size:14.5px;table-layout:fixed}
+.ctable th,.ctable td{padding:7px 4px;border-bottom:1px solid var(--line);text-align:center;position:static;background:transparent}
+.ctable thead th{background:var(--wine);color:var(--on-wine);font-size:13px;font-weight:700;border:0}
+.ctable thead th:first-child{border-radius:8px 0 0 8px;text-align:left;padding-left:8px;background:var(--wine)}
+.ctable thead th:last-child{border-radius:0 8px 8px 0}
+.ctable th.vcol{width:40%}
+.ctable td.v{text-align:left;padding-left:4px}
+.ctable .vwrap{display:flex;align-items:center;gap:8px;min-width:0}
+.ctable .vwrap span{font-weight:600;overflow-wrap:anywhere;line-height:1.15}
+.thumb{flex:0 0 34px;width:34px;height:34px;border-radius:8px;overflow:hidden;background:var(--sunk);border:0;padding:0;display:block}
+.thumb img,.thumb svg{width:100%;height:100%;object-fit:cover;display:block}
+button.thumb{outline:1px dashed var(--muted);outline-offset:1px}
+.ctable td.q{font-weight:600}
+.ctable td.z{color:var(--line)}
+.ctable td.lowq{color:var(--amber)}
+.ctable td.tot,.ctable th.tot{background:var(--wine-soft);font-weight:700}
+.ctable thead th.tot{background:var(--wine);}
+.ctable tbody tr:nth-child(even) td:not(.tot){background:var(--bg)}
+.ctable tr.out td{opacity:.45}
+.ctable tfoot td{font-weight:700;border-top:2px solid var(--wine);border-bottom:0;background:var(--sunk);font-size:15px}
+.ctable tfoot td:first-child{text-align:left;padding-left:8px;background:var(--sunk)}
+.viewswitch{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.viewswitch button{border:0;background:var(--surface);padding:6px 12px;font-size:13px;font-weight:600;color:var(--muted)}
+.viewswitch button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+@media (max-width:420px){
+  .sheet{padding:14px 10px 12px}
+  .ctable{font-size:13.5px}
+  .ctable th,.ctable td{padding:6px 2px}
+  .ctable thead th{font-size:11.5px}
+  .ctable th.vcol{width:36%}
+  .thumb{flex-basis:26px;width:26px;height:26px;border-radius:6px}
+  .ctable .vwrap{gap:5px}
+}
+
+
+/* stock editing + plan */
+#stockTable{min-width:860px}
+#stockTable td{vertical-align:top}
+#stockTable .sub{font-size:11px;color:var(--muted);margin-top:2px}
+#stockTable .sub.lowtxt{color:var(--amber);font-weight:600}
+#stockTable .sub.neg,.negb{color:var(--red);font-weight:700}
+.vedit{display:flex;align-items:center;gap:6px}
+.vedit .swatch{width:28px;height:28px;padding:0;border:1px solid var(--line);border-radius:6px;background:none;flex:0 0 28px}
+.vedit .vn{width:130px;border:1px solid var(--line);border-radius:8px;padding:5px 7px;background:var(--bg);font-weight:600;text-align:left}
+.mv{display:inline-flex;flex-direction:column;gap:1px}
+.mvb{border:1px solid var(--line);background:var(--surface);border-radius:4px;font-size:9px;line-height:1;padding:2px 4px;color:var(--muted)}
+.mvb:disabled{opacity:.3;cursor:default}
+.btn.mini{padding:3px 8px;font-size:12.5px}
+tr.hid td{opacity:.5}
+.ptable{min-width:0}
+.ptable td,.ptable th{text-align:center}
+.plist{font-size:13.5px;border-radius:10px;padding:8px 10px;line-height:1.5}
+.plist.warn{background:var(--amber-soft)}
+.plist.bad{background:var(--red-soft)}
+.sharebar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* share mode: only the sheet */
+body.share .tabs, body.share .toolbar .staff, body.share .sharebar, body.share .photo .edit{display:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+@media (max-width:420px){
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .brand{font-size:24px}
+  .line{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 64px 36px}
+}
+/* ---- hosted version: roles + mobile ---- */
+html{-webkit-text-size-adjust:100%}
+[hidden]{display:none!important}
+.view{display:flex;flex-direction:column;gap:14px}
+body:not(.is-staff) .staffonly, body:not(.is-staff) .tabs{display:none!important}
+body.share .authbar, body.share #authMsg{display:none}
+.authbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.authbar .hint{overflow-wrap:anywhere}
+.btn,.filters button,.viewswitch button,.tabs button{min-height:40px}
+.viewswitch button{display:inline-flex;align-items:center}
+@media (max-width:640px){
+  body{padding-inline:12px;padding-bottom:calc(92px + env(safe-area-inset-bottom,0px))}
+  body:not(.is-staff){padding-bottom:calc(24px + env(safe-area-inset-bottom,0px))}
+  input,select,textarea{font-size:16px}
+  .tabs{position:fixed;top:auto;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom,0px));background:var(--surface);border:1px solid var(--line);box-shadow:0 6px 20px rgba(0,0,0,.2)}
+  .toolbar{gap:10px 14px}
+  .panel{padding:14px 12px;border-radius:14px}
+  .line{grid-template-columns:minmax(0,1fr) 92px 44px}
+  .line .field:first-child{grid-column:1/-1}
+  .line .x{height:44px}
+  .oactions .btn{flex:1 1 auto}
+  .sharebar .btn{flex:1 1 auto}
+  .stockwrap{border:0;overflow:visible}
+  #stockTable{display:block;min-width:0}
+  #stockTable thead{display:none}
+  #stockTable tbody,#stockTable tfoot{display:block}
+  #stockTable tbody tr{display:grid;grid-template-columns:repeat(15,minmax(0,1fr));gap:10px 6px;padding:12px;margin-bottom:10px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg)}
+  #stockTable td{display:block;padding:0;border:0;text-align:left;position:static;background:transparent;min-width:0}
+  #stockTable td:first-child{grid-column:1/-1}
+  #stockTable td[data-l]::before{content:attr(data-l);display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
+  #stockTable td.gc{grid-column:span 3}
+  #stockTable td.gc input{width:100%;height:44px}
+  #stockTable td.st{grid-column:span 5}
+  #stockTable td.sh{grid-column:span 7;display:flex;align-items:center;gap:8px}
+  #stockTable td.sh::before{margin:0;order:2}
+  #stockTable td.sh input{width:24px;height:24px;padding:0}
+  #stockTable td.dl{grid-column:span 8;text-align:right}
+  #stockTable .vedit .vn{flex:1;width:auto;min-width:0;height:44px}
+  #stockTable .vedit .swatch{width:44px;height:44px;flex-basis:44px}
+  .mvb{padding:8px 10px;font-size:11px}
+  #stockTable tfoot tr{display:flex;flex-wrap:wrap;gap:4px 14px;padding:10px 12px;background:var(--sunk);border-radius:10px;font-weight:700}
+  #stockTable tfoot td{display:inline;padding:0;border:0;background:transparent}
+  #stockTable tfoot td:empty{display:none}
+  #stockTable tfoot td[data-l]::before{content:attr(data-l) " ";font-weight:500;color:var(--muted);display:inline;font-size:inherit;text-transform:none;letter-spacing:0}
+}
+@media (max-width:360px){
+  .brand{font-size:21px}
+  .ctable{font-size:12.5px}
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tab-cat" aria-selected="true" data-tab="cat">Catalogue</button>
+    <button role="tab" id="tab-ord" aria-selected="false" data-tab="ord">Orders <span class="count num" id="openCount" hidden>0</span></button>
+    <button role="tab" id="tab-stk" aria-selected="false" data-tab="stk">Stock</button>
+  </div>
+
+  <!-- CATALOGUE -->
+  <section id="view-cat" class="view">
+    <div class="toolbar">
+      <label class="toggle staffonly"><input type="checkbox" id="shareMode"> Share view (for screenshot)</label>
+      <label class="toggle"><input type="checkbox" id="hideOut" checked> Hide sold out</label>
+      <span class="viewswitch" id="viewSwitch"><button type="button" data-mode="table" aria-pressed="true">Table</button><button type="button" data-mode="cards" aria-pressed="false">Photo cards</button></span>
+    </div>
+    <div class="sheet" id="sheet">
+      <div class="sheet-head">
+        <div>
+          <div class="brand" id="brandName">LR Farms</div>
+          <div class="brand-sub" id="brandSub">Fresh rose availability</div>
+        </div>
+        <div class="asof"><span>Available today</span><b id="todayLabel">–</b></div>
+      </div>
+      <div class="legend"><span>Stem length in cm · quantity in bunches</span><span id="contactLine"></span></div>
+      <div id="tableView"><table class="ctable" id="ctable"></table></div>
+      <div class="grid" id="grid" hidden></div>
+      <div id="catEmpty" class="empty" hidden>Loading stock… If nothing appears, add varieties in the <b>Stock</b> tab.</div>
+      <div class="sheet-foot"><span>Total available <b class="num" id="totalBal">0</b> bunches</span><span id="footNote">Reply on WhatsApp to book</span></div>
+    </div>
+    <div class="sharebar staff staffonly" id="shareBar">
+      <button class="btn primary" type="button" id="saveImg">Save image for WhatsApp</button>
+      <button class="btn" type="button" id="copyTxt">Copy WhatsApp text</button>
+      <span id="shareMsg" class="hint"></span>
+    </div>
+    <p class="hint staff" id="photoHint">Tap a photo to add or change it. Use <b>Save image</b> to send the list on WhatsApp.</p>
+    <div class="authbar" id="authBar"></div>
+    <p class="hint" id="authMsg" hidden></p>
+  </section>
+
+  <!-- ORDERS -->
+  <section id="view-ord" class="view" hidden>
+    <form class="panel" id="orderForm" autocomplete="off">
+      <h2>New order</h2>
+      <div class="row">
+        <div class="field"><label for="oCust">Customer</label><input id="oCust" required placeholder="Name or shop"></div>
+        <div class="field"><label for="oPhone">Phone</label><input id="oPhone" inputmode="tel" placeholder="Optional"></div>
+        <div class="field"><label for="oDate">Delivery date</label><input id="oDate" type="date"></div>
+      </div>
+      <div id="lines" style="display:flex;flex-direction:column;gap:10px"></div>
+      <div><button type="button" class="btn" id="addLine">+ Add another variety</button></div>
+      <div class="field"><label for="oNote">Note</label><input id="oNote" placeholder="Optional: rate, transport, packing"></div>
+      <div class="toolbar"><button class="btn primary" id="saveOrder" type="submit">Save order</button><span id="orderMsg"></span></div>
+    </form>
+
+    <div class="panel">
+      <div class="ohead"><h2>Orders</h2>
+        <div class="filters" id="ofilters">
+          <button type="button" data-f="active" aria-pressed="true">Active</button>
+          <button type="button" data-f="all" aria-pressed="false">All</button>
+        </div>
+      </div>
+      <div class="olist" id="olist"></div>
+    </div>
+  </section>
+
+  <!-- STOCK -->
+  <section id="view-stk" class="view" hidden>
+    <div class="panel">
+      <h2>Plan</h2>
+      <p class="hint" style="margin:0">Counted stock against active orders, by stem length. Use it to decide what to push, what to cut tomorrow, and what to stop offering.</p>
+      <div id="planBody" style="display:flex;flex-direction:column;gap:10px"></div>
+    </div>
+    <div class="panel">
+      <div class="ohead"><h2>Counted stock</h2><span class="hint" id="stockDateLabel"></span></div>
+      <p class="hint" style="margin:0">Edit names, colours and counted bunches here. Use the arrows to change the order on the catalogue, and untick <b>Show</b> to hide a variety from customers without deleting it. Changes save when you leave a box.</p>
+      <div class="tablewrap stockwrap"><table id="stockTable"></table></div>
+      <div class="toolbar">
+        <button class="btn" id="newCountBtn" type="button">Start new day's count</button>
+        <span id="stockMsg"></span>
+      </div>
+      <div id="newCountConfirm" class="confirm" hidden>
+        <span>This moves all active orders to <b>Archived</b> (they stop reducing stock) and sets today as the count date. Then type in today's fresh count.</span>
+        <button class="btn danger" id="newCountYes" type="button">Yes, start new count</button>
+        <button class="btn ghost" id="newCountNo" type="button">Cancel</button>
+      </div>
+    </div>
+
+    <form class="panel" id="addVarForm">
+      <h2>Add a variety</h2>
+      <div class="row">
+        <div class="field"><label for="nvName">Name</label><input id="nvName" required placeholder="e.g. Avalanche"></div>
+        <div class="field"><label for="nvColor">Colour (for placeholder)</label><input id="nvColor" type="color" value="#c2185b"></div>
+      </div>
+      <div class="toolbar"><button class="btn primary" type="submit">Add variety</button><span id="addVarMsg"></span></div>
+    </form>
+
+    <form class="panel" id="settingsForm">
+      <h2>Catalogue heading</h2>
+      <div class="row">
+        <div class="field"><label for="sTitle">Business name</label><input id="sTitle"></div>
+        <div class="field"><label for="sSub">Subtitle</label><input id="sSub"></div>
+        <div class="field"><label for="sContact">Contact line</label><input id="sContact" placeholder="e.g. WhatsApp 98xxxxxx"></div>
+        <div class="field"><label for="sFoot">Footer note</label><input id="sFoot"></div>
+      </div>
+      <div class="toolbar"><button class="btn primary" type="submit">Save heading</button><span id="settingsMsg"></span></div>
+    </form>
+  </section>
+</div>
+<input type="file" id="filePick" accept="image/*" hidden>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script>
+(() => {
+/* ===== PASTE YOUR FIREBASE WEB APP CONFIG HERE (Firebase console > Project settings > Your apps) ===== */
+const firebaseConfig = {
+  apiKey: "AIzaSyBotZBJ_7dz0ef8OX6dOAgUrG4eqSSruNI",
+  authDomain: "lr-rose-farm-availability.firebaseapp.com",
+  projectId: "lr-rose-farm-availability",
+  appId: "1:342733082877:web:27e7aac7793132dbf36e94"
+};
+/* ================================================================================================== */
+const GRADES = ["30","40","50","60","70"];
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const todayISO = () => { const d = new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
+const fmtDate = iso => { if(!iso) return "–"; const [y,m,d] = iso.split("-").map(Number); return new Date(y,m-1,d).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}); };
+const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,60) || ("v"+Date.now());
+
+let db = null, auth = null, canWrite = false, ordersLoaded = false, varsLoaded = false, unsubOrders = null, syncTimer = null, restoredTab = false;
+let varieties = [];       // [{id, name, order, swatch, photo, stock:{}}]
+let orders = [];          // [{id, ...}]
+let settings = { title:"LR Farms", subtitle:"Fresh rose availability", contact:"", foot:"Reply on WhatsApp to book", stockDate:"" };
+let filter = "active";
+let uploadingId = null, pickFor = null;
+let catMode = "table";
+try{ const m = localStorage.getItem("lr-cat"); if (m === "cards" || m === "table") catMode = m; }catch(e){}
+const counts = o => o.status === "open" || o.status === "dispatched";
+
+/* ---------- balance ---------- */
+function used(){
+  const u = {};
+  if (canWrite && ordersLoaded){
+    for (const o of orders){ if(!counts(o)) continue;
+      for (const it of (o.items||[])){ const k = it.v+"|"+it.g; u[k] = (u[k]||0) + (Number(it.q)||0); } }
+    return u;
+  }
+  // public viewers can't read orders; they use the booked totals staff keep on each variety
+  for (const v of varieties) for (const g of GRADES){ const n = Number(v.booked?.[g])||0; if (n) u[v.id+"|"+g] = n; }
+  return u;
+}
+// staff clients keep a public, anonymous "booked" total on each variety so the shared catalogue stays accurate without exposing customer orders
+function syncBooked(){
+  if (!db || !canWrite || !ordersLoaded || !varsLoaded) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(async () => {
+    const u = used();
+    for (const v of varieties){
+      const want = Object.fromEntries(GRADES.map(g => [g, u[v.id+"|"+g]||0]));
+      if (GRADES.some(g => (Number(v.booked?.[g])||0) !== want[g])){ try{ await db.doc("varieties/"+v.id).update({ booked: want }); }catch(e){} }
+    }
+  }, 400);
+}
+function balances(){
+  const u = used(); const out = {};
+  for (const v of varieties){ out[v.id] = {}; for (const g of GRADES){ out[v.id][g] = (Number(v.stock?.[g])||0) - (u[v.id+"|"+g]||0); } }
+  return out;
+}
+
+/* ---------- placeholder rose ---------- */
+function rose(color){
+  const c = esc(color || "#c2185b");
+  return `<svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="var(--sunk)"/>
+  <g transform="translate(50 50)" fill="${c}" stroke="rgba(0,0,0,.18)" stroke-width="1">
+  <circle r="30"/><path d="M-22 -8 C-18 -26 18 -26 22 -8 C14 -14 -14 -14 -22 -8Z" opacity=".55"/>
+  <circle r="19" opacity=".85"/><path d="M-12 2 C-10 -14 12 -14 12 2 C6 -4 -6 -4 -12 2Z" opacity=".6"/>
+  <circle r="9"/><path d="M-4 0 C-3 -6 4 -6 5 0" fill="none" stroke="rgba(0,0,0,.3)" stroke-width="1.5"/></g></svg>`;
+}
+
+/* ---------- render: catalogue ---------- */
+function renderCatalogue(){
+  const bal = balances();
+  const hideOut = $("#hideOut").checked;
+  const share = document.body.classList.contains("share");
+  $("#brandName").textContent = settings.title || "LR Farms";
+  $("#brandSub").textContent = settings.subtitle || "";
+  $("#contactLine").textContent = settings.contact || "";
+  $("#footNote").textContent = settings.foot || "";
+  $("#todayLabel").textContent = fmtDate(todayISO());
+  let total = 0;
+  const cards = [];
+  for (const v of varieties){
+    if (v.hide) continue;
+    const b = bal[v.id]; const sum = GRADES.reduce((a,g)=>a+Math.max(0,b[g]),0); total += sum;
+    if (hideOut && sum <= 0) continue;
+    const chips = GRADES.filter(g => b[g] > 0).map(g => `<span class="chip num${b[g] <= 5 ? " low":""}">${g}+<b>${b[g]}</b></span>`).join("");
+    const img = v.photo ? `<img src="${esc(v.photo)}" alt="${esc(v.name)} roses" loading="lazy">` : rose(v.swatch);
+    const editable = canWrite && !share;
+    const tag = editable ? "button" : "div";
+    cards.push(`<div class="card${sum<=0?" out":""}">
+      <${tag} class="photo"${editable?` type="button" data-photo="${esc(v.id)}" aria-label="Change photo for ${esc(v.name)}"`:""}>${img}
+        ${sum<=0?`<span class="badge sold">Sold out</span>`:""}
+        ${editable?`<span class="edit">${v.photo?"Change photo":"Add photo"}</span>`:""}
+        ${uploadingId===v.id?`<span class="busy">Uploading…</span>`:""}
+      </${tag}>
+      <div class="vname"><span>${esc(v.name)}</span><small class="num">${sum} bn</small></div>
+      <div class="chips">${chips || `<span class="chip">No stock</span>`}</div>
+    </div>`);
+  }
+  $("#grid").innerHTML = cards.join("");
+  // table view
+  const colTot = Object.fromEntries(GRADES.map(g=>[g,0]));
+  const trs = [];
+  for (const v of varieties){
+    if (v.hide) continue;
+    const b = bal[v.id]; const sum = GRADES.reduce((a,g)=>a+Math.max(0,b[g]),0);
+    GRADES.forEach(g => colTot[g] += Math.max(0,b[g]));
+    if (hideOut && sum <= 0) continue;
+    const editable = canWrite && !share;
+    const img = v.photo ? `<img src="${esc(v.photo)}" alt="" loading="lazy">` : rose(v.swatch);
+    const thumb = editable ? `<button type="button" class="thumb" data-photo="${esc(v.id)}" aria-label="Photo for ${esc(v.name)}">${img}</button>` : `<span class="thumb">${img}</span>`;
+    const cells = GRADES.map(g => { const q = Math.max(0,b[g]); return q ? `<td class="q num${q<=5?" lowq":""}">${q}</td>` : `<td class="z">–</td>`; }).join("");
+    trs.push(`<tr class="${sum<=0?"out":""}"><td class="v"><div class="vwrap">${thumb}<span>${esc(v.name)}</span></div></td>${cells}<td class="tot num">${sum}</td></tr>`);
+  }
+  $("#ctable").innerHTML = `<thead><tr><th class="vcol">Variety</th>${GRADES.map(g=>`<th>${g}+</th>`).join("")}<th class="tot">Total</th></tr></thead>
+    <tbody>${trs.join("")}</tbody>
+    <tfoot><tr><td>Total</td>${GRADES.map(g=>`<td class="num">${colTot[g]}</td>`).join("")}<td class="num">${total}</td></tr></tfoot>`;
+  const isTable = catMode === "table";
+  $("#tableView").hidden = !isTable; $("#grid").hidden = isTable;
+  $("#catEmpty").hidden = varieties.length > 0;
+  $("#totalBal").textContent = total;
+  $("#photoHint").hidden = !canWrite;
+}
+
+/* ---------- render: order form lines ---------- */
+function optionsVar(sel){
+  return `<option value="">Choose variety</option>` + varieties.filter(v=>!v.hide || v.id===sel).map(v => `<option value="${esc(v.id)}"${v.id===sel?" selected":""}>${esc(v.name)}</option>`).join("");
+}
+function addLine(pre){
+  const el = document.createElement("div");
+  el.className = "line";
+  const n = $("#lines").children.length;
+  el.innerHTML = `<div class="field"><label for="lv${n}">Variety</label><select id="lv${n}" class="lv">${optionsVar(pre?.v)}</select></div>
+    <div class="field"><label for="lg${n}">Length</label><select id="lg${n}" class="lg"></select></div>
+    <div class="field"><label for="lq${n}">Bunches</label><input id="lq${n}" class="lq num" type="number" min="1" inputmode="numeric"></div>
+    <button type="button" class="x" aria-label="Remove line">×</button>
+    <div class="left"></div>`;
+  $("#lines").appendChild(el);
+  fillGrades(el);
+}
+function fillGrades(el){
+  const v = el.querySelector(".lv").value, gs = el.querySelector(".lg"), prev = gs.value;
+  const bal = balances()[v] || {};
+  gs.innerHTML = v ? GRADES.map(g => `<option value="${g}"${(bal[g]||0)<=0?" disabled":""}>${g}+ (${Math.max(0,bal[g]||0)} left)</option>`).join("") : `<option value="">–</option>`;
+  if (prev && [...gs.options].some(o=>o.value===prev && !o.disabled)) gs.value = prev;
+  else { const first = [...gs.options].find(o=>!o.disabled); if(first) gs.value = first.value; }
+  checkLines();
+}
+function checkLines(){
+  const bal = balances(); const want = {};
+  let ok = true;
+  [...$("#lines").children].forEach(el => {
+    const v = el.querySelector(".lv").value, g = el.querySelector(".lg").value, q = Number(el.querySelector(".lq").value)||0;
+    const left = el.querySelector(".left");
+    if (!v || !g){ left.textContent = ""; left.className = "left"; return; }
+    const k = v+"|"+g; want[k] = (want[k]||0) + q;
+    const avail = bal[v]?.[g] ?? 0;
+    if (want[k] > avail){ ok = false; left.textContent = `Only ${Math.max(0,avail)} bunches of ${g}+ left`; left.className = "left bad"; }
+    else { left.textContent = q ? `${avail - want[k]} will remain after this order` : ""; left.className = "left"; }
+  });
+  return ok;
+}
+function refreshFormSelects(){
+  [...$("#lines").children].forEach(el => {
+    const s = el.querySelector(".lv"), cur = s.value; s.innerHTML = optionsVar(cur); fillGrades(el);
+  });
+}
+
+/* ---------- render: orders list ---------- */
+function renderOrders(){
+  const name = id => varieties.find(v=>v.id===id)?.name || id;
+  const list = orders.filter(o => filter==="all" ? true : (o.status==="open" || o.status==="dispatched"));
+  const open = orders.filter(o=>o.status==="open").length;
+  $("#openCount").hidden = !open; $("#openCount").textContent = open;
+  if (!list.length){ $("#olist").innerHTML = `<div class="empty">${filter==="all"?"No orders yet.":"No active orders."} Saved orders appear here and reduce the catalogue balance.</div>`; return; }
+  $("#olist").innerHTML = list.map(o => {
+    const items = (o.items||[]).map(it => `<span><b>${esc(name(it.v))}</b> ${esc(it.g)}+ × <span class="num">${Number(it.q)||0}</span></span>`).join("");
+    const tot = (o.items||[]).reduce((a,it)=>a+(Number(it.q)||0),0);
+    const acts = !canWrite ? "" : o.status==="open"
+      ? `<button class="btn" data-act="dispatched" data-id="${esc(o.id)}">Mark dispatched</button><button class="btn danger" data-act="cancelled" data-id="${esc(o.id)}">Cancel order</button>`
+      : o.status==="dispatched" ? `<button class="btn ghost" data-act="open" data-id="${esc(o.id)}">Back to open</button>`
+      : o.status==="cancelled" ? `<button class="btn ghost" data-act="open" data-id="${esc(o.id)}">Restore</button>` : "";
+    return `<div class="order ${esc(o.status)}">
+      <div class="ohead"><div><h3>${esc(o.customer)}</h3><div class="ometa">${fmtDate(o.date)}${o.phone?" · "+esc(o.phone):""} · <span class="num">${tot}</span> bunches</div></div><span class="pill ${esc(o.status)}">${esc(o.status)}</span></div>
+      <div class="oitems">${items}</div>
+      ${o.note?`<div class="ometa">${esc(o.note)}</div>`:""}
+      ${acts?`<div class="oactions">${acts}</div>`:""}
+    </div>`;
+  }).join("");
+}
+
+/* ---------- render: stock table ---------- */
+let confirmDel = null;
+function renderStock(){
+  const bal = balances(); const u = used();
+  $("#stockDateLabel").textContent = settings.stockDate ? "Counted on " + fmtDate(settings.stockDate) : "";
+  const head = `<thead><tr><th>Variety</th>${GRADES.map(g=>`<th>${g}+ cm</th>`).join("")}<th>Counted</th><th>Booked</th><th>Balance</th><th>Show</th><th></th></tr></thead>`;
+  const totals = Object.fromEntries(GRADES.map(g=>[g,0])); let gt = 0, gk = 0, gb = 0;
+  const dis = canWrite ? "" : "disabled";
+  const rows = varieties.map((v, idx) => {
+    const t = GRADES.reduce((a,g)=>a+(Number(v.stock?.[g])||0),0);
+    const k = GRADES.reduce((a,g)=>a+(u[v.id+"|"+g]||0),0);
+    const b = t - k;
+    GRADES.forEach(g => totals[g] += Number(v.stock?.[g])||0); gt += t; gk += k; gb += b;
+    const cells = GRADES.map(g => { const bk = u[v.id+"|"+g]||0; const bl = bal[v.id][g];
+      return `<td class="gc" data-l="${g}+ cm"><input class="num" type="number" min="0" inputmode="numeric" id="s-${esc(v.id)}-${g}" data-v="${esc(v.id)}" data-g="${g}" value="${Number(v.stock?.[g])||""}" ${dis} aria-label="${esc(v.name)} ${g}+">${bk?`<div class="sub${bl<0?" neg":bl<=5?" lowtxt":""}">${bl} left</div>`:""}</td>`; }).join("");
+    const del = !canWrite ? "" : confirmDel===v.id
+      ? `<button class="btn danger mini" data-delv="${esc(v.id)}">Delete</button> <button class="btn ghost mini" data-canceldel>Keep</button>`
+      : `<button class="btn ghost mini" data-askdel="${esc(v.id)}" aria-label="Remove ${esc(v.name)}">Remove</button>`;
+    const nameCell = canWrite
+      ? `<div class="vedit"><input type="color" class="swatch" id="c-${esc(v.id)}" data-color="${esc(v.id)}" value="${esc(v.swatch||"#c2185b")}" aria-label="Colour for ${esc(v.name)}"><input class="vn" id="n-${esc(v.id)}" data-name="${esc(v.id)}" value="${esc(v.name)}" aria-label="Name"><span class="mv"><button type="button" class="mvb" data-move="${esc(v.id)}" data-dir="-1" ${idx===0?"disabled":""} aria-label="Move ${esc(v.name)} up">▲</button><button type="button" class="mvb" data-move="${esc(v.id)}" data-dir="1" ${idx===varieties.length-1?"disabled":""} aria-label="Move ${esc(v.name)} down">▼</button></span></div>`
+      : `<span class="dot" style="background:${esc(v.swatch||"#ccc")}"></span>${esc(v.name)}`;
+    return `<tr class="${v.hide?"hid":""}"><td>${nameCell}</td>${cells}<td class="num st" data-l="Counted">${t}</td><td class="num st" data-l="Booked">${k||"–"}</td><td class="num st" data-l="Balance"><b class="${b<0?"negb":""}">${b}</b></td><td class="sh" data-l="Show"><input type="checkbox" id="h-${esc(v.id)}" data-show="${esc(v.id)}" ${v.hide?"":"checked"} ${dis} aria-label="Show ${esc(v.name)} on catalogue"></td><td class="dl" style="white-space:nowrap">${del}</td></tr>`;
+  }).join("");
+  const foot = `<tfoot><tr><td>Total</td>${GRADES.map(g=>`<td class="num" data-l="${g}+">${totals[g]}</td>`).join("")}<td class="num" data-l="Counted">${gt}</td><td class="num" data-l="Booked">${gk}</td><td class="num" data-l="Balance">${gb}</td><td></td><td></td></tr></tfoot>`;
+  const active = document.activeElement && document.activeElement.closest("#stockTable") ? document.activeElement.id : null;
+  $("#stockTable").innerHTML = head + `<tbody>${rows || `<tr><td colspan="11" class="hint">No varieties yet. Add one below.</td></tr>`}</tbody>` + foot;
+  if (active){ const el = document.getElementById(active); if (el) el.focus(); }
+  ["sTitle","sSub","sContact","sFoot"].forEach((id,i)=>{ const el=$("#"+id); if(document.activeElement!==el) el.value = [settings.title,settings.subtitle,settings.contact,settings.foot][i]||""; });
+  renderPlan(bal, u);
+}
+
+/* ---------- planning summary ---------- */
+function renderPlan(bal, u){
+  const shown = varieties.filter(v=>!v.hide);
+  const rows = GRADES.map(g => {
+    const c = shown.reduce((a,v)=>a+(Number(v.stock?.[g])||0),0), k = shown.reduce((a,v)=>a+(u[v.id+"|"+g]||0),0);
+    return `<tr><td>${g}+ cm</td><td class="num">${c}</td><td class="num">${k||"–"}</td><td class="num"><b>${c-k}</b></td></tr>`; }).join("");
+  const low = [], out = [], over = [];
+  for (const v of shown){ for (const g of GRADES){ const b = bal[v.id][g], c = Number(v.stock?.[g])||0;
+    if (b < 0) over.push(`${v.name} ${g}+ (${b})`); else if (c > 0 && b === 0) out.push(`${v.name} ${g}+`); else if (b > 0 && b <= 5) low.push(`${v.name} ${g}+ (${b})`); } }
+  const list = (title, arr, cls) => arr.length ? `<div class="plist ${cls}"><b>${title}</b> ${arr.map(esc).join(" · ")}</div>` : "";
+  $("#planBody").innerHTML = `<div class="tablewrap"><table class="ptable"><thead><tr><th>Length</th><th>Counted</th><th>Booked</th><th>Balance</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    + (list("Overbooked:", over, "bad") + list("Booked out:", out, "warn") + list("Running low:", low, "warn") || `<div class="hint">No varieties are low or booked out.</div>`);
+}
+
+function renderAll(){ renderCatalogue(); renderOrders(); if(!document.activeElement?.closest("#stockTable")) renderStock(); refreshFormSelects(); }
+
+/* ---------- tabs & toggles ---------- */
+function showTab(name, persist){
+  if (name !== "cat" && !canWrite) name = "cat";
+  if (!document.querySelector(`.tabs [data-tab="${name}"]`)) name = "cat";
+  document.querySelectorAll(".tabs button").forEach(x => x.setAttribute("aria-selected", x.dataset.tab === name));
+  document.querySelectorAll(".view").forEach(v => { v.hidden = v.id !== "view-"+name; });
+  if (persist){ try{ localStorage.setItem("lr-tab", name); }catch(e){} }
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab, true)));
+$("#shareMode").addEventListener("change", e => { document.body.classList.toggle("share", e.target.checked); renderCatalogue(); });
+$("#hideOut").addEventListener("change", renderCatalogue);
+
+/* ---------- photos ---------- */
+$("#viewSwitch").addEventListener("click", e => {
+  const b = e.target.closest("[data-mode]"); if(!b) return; catMode = b.dataset.mode;
+  document.querySelectorAll("#viewSwitch button").forEach(x=>x.setAttribute("aria-pressed", x===b));
+  try{ localStorage.setItem("lr-cat", catMode); }catch(e){}
+  renderCatalogue();
+});
+$("#sheet").addEventListener("click", e => {
+  const b = e.target.closest("[data-photo]"); if(!b || !canWrite) return;
+  pickFor = b.dataset.photo; $("#filePick").value = ""; $("#filePick").click();
+});
+async function shrink(file){
+  try{
+    const bmp = await createImageBitmap(file);
+    const max = 600, s = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas"); c.width = Math.round(bmp.width*s); c.height = Math.round(bmp.height*s);
+    c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);
+    return await new Promise(r => c.toBlob(b => r(b || file), "image/jpeg", 0.72));
+  }catch(e){ return file; }
+}
+$("#filePick").addEventListener("change", async e => {
+  const f = e.target.files?.[0]; const id = pickFor; if(!f || !id) return;
+  uploadingId = id; renderCatalogue();
+  try{
+    const blob = await shrink(f);
+    if (!blob.type || !blob.type.startsWith("image/")) throw { code: "unsupported_type" };
+    const url = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
+    if (url.length > 700000) throw { code: "too_large" };
+    await db.doc("varieties/"+id).update({ photo: url });
+  }catch(err){
+    const m = err?.code==="too_large" ? "That photo is too big. Try a smaller one." : err?.code==="unsupported_type" ? "Use a JPG or PNG photo." : "Photo could not be saved. Try again.";
+    $("#photoHint").innerHTML = `<span class="err">${esc(m)}</span>`; $("#photoHint").hidden = false;
+  }
+  uploadingId = null; renderCatalogue();
+});
+
+/* ---------- orders ---------- */
+$("#oDate").value = todayISO();
+$("#addLine").addEventListener("click", () => addLine());
+$("#lines").addEventListener("change", e => { const el = e.target.closest(".line"); if(!el) return; if (e.target.classList.contains("lv")) fillGrades(el); else checkLines(); });
+$("#lines").addEventListener("input", e => { if (e.target.classList.contains("lq")) checkLines(); });
+$("#lines").addEventListener("click", e => { if (e.target.classList.contains("x")){ e.target.closest(".line").remove(); if(!$("#lines").children.length) addLine(); checkLines(); } });
+$("#orderForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const msg = $("#orderMsg"); msg.className = "err";
+  const items = [...$("#lines").children].map(el => ({ v: el.querySelector(".lv").value, g: el.querySelector(".lg").value, q: Number(el.querySelector(".lq").value)||0 })).filter(it => it.v && it.g && it.q > 0);
+  if (!$("#oCust").value.trim()){ msg.textContent = "Enter the customer name."; return; }
+  if (!items.length){ msg.textContent = "Add at least one variety with a quantity."; return; }
+  if (!checkLines()){ msg.textContent = "Some quantities are more than the balance. Reduce them or update stock."; return; }
+  if (!db){ msg.textContent = "Saving is not available in this view."; return; }
+  $("#saveOrder").disabled = true;
+  try{
+    await db.collection("orders").add({ customer: $("#oCust").value.trim(), phone: $("#oPhone").value.trim(), date: $("#oDate").value || todayISO(), note: $("#oNote").value.trim(), items, status: "open", createdAt: Date.now() });
+    msg.className = "ok"; msg.textContent = "Order saved. Catalogue balance updated.";
+    ["oCust","oPhone","oNote"].forEach(id => $("#"+id).value = ""); $("#lines").innerHTML = ""; addLine();
+  }catch(err){ msg.textContent = err?.code==="permission-denied" ? "You are not signed in as staff, so orders can't be saved." : "Order not saved. Check your connection and try again."; }
+  $("#saveOrder").disabled = false;
+});
+$("#ofilters").addEventListener("click", e => { const b = e.target.closest("[data-f]"); if(!b) return; filter = b.dataset.f; document.querySelectorAll("#ofilters button").forEach(x=>x.setAttribute("aria-pressed", x===b)); renderOrders(); });
+$("#olist").addEventListener("click", async e => {
+  const b = e.target.closest("[data-act]"); if(!b || !db) return; b.disabled = true;
+  try{ await db.doc("orders/"+b.dataset.id).update({ status: b.dataset.act }); }catch(err){ b.disabled = false; }
+});
+
+/* ---------- stock ---------- */
+$("#stockTable").addEventListener("change", async e => {
+  const i = e.target; if(!db) return; const msg = $("#stockMsg");
+  const save = async (id, data, label) => { try{ await db.doc("varieties/"+id).update(data); msg.className="ok"; msg.textContent = "Saved " + label; } catch(err){ msg.className="err"; msg.textContent = "Could not save. You may have view-only access."; } };
+  if (i.dataset.v){
+    const v = varieties.find(x=>x.id===i.dataset.v); if(!v) return;
+    const val = Math.max(0, Math.floor(Number(i.value)||0));
+    if ((Number(v.stock?.[i.dataset.g])||0) === val) return;
+    return save(v.id, { ["stock."+i.dataset.g]: val }, v.name + " " + i.dataset.g + "+");
+  }
+  if (i.dataset.name){
+    const v = varieties.find(x=>x.id===i.dataset.name); const n = i.value.trim();
+    if(!v || !n || n === v.name){ if(v) i.value = v.name; return; }
+    return save(v.id, { name: n }, "name " + n);
+  }
+  if (i.dataset.color){ const v = varieties.find(x=>x.id===i.dataset.color); if(v) return save(v.id, { swatch: i.value }, v.name + " colour"); }
+  if (i.dataset.show){ const v = varieties.find(x=>x.id===i.dataset.show); if(v) return save(v.id, { hide: !i.checked }, v.name + (i.checked ? " (shown)" : " (hidden from catalogue)")); }
+});
+$("#stockTable").addEventListener("focusout", () => setTimeout(() => { if(!document.activeElement?.closest("#stockTable")) renderStock(); }, 0));
+$("#stockTable").addEventListener("click", async e => {
+  const a = e.target.closest("[data-askdel]"), d = e.target.closest("[data-delv]"), c = e.target.closest("[data-canceldel]");
+  const mv = e.target.closest("[data-move]");
+  if (mv && db){
+    const i = varieties.findIndex(v=>v.id===mv.dataset.move), j = i + Number(mv.dataset.dir);
+    if (i < 0 || j < 0 || j >= varieties.length) return;
+    const list = varieties.slice(); [list[i], list[j]] = [list[j], list[i]];
+    try{ for (let k = 0; k < list.length; k++){ if ((Number(list[k].order)||0) !== k+1) await db.doc("varieties/"+list[k].id).update({ order: k+1 }); } }catch(err){}
+    return;
+  }
+  if (a){ confirmDel = a.dataset.askdel; renderStock(); }
+  if (c){ confirmDel = null; renderStock(); }
+  if (d && db){ confirmDel = null; try{ await db.doc("varieties/"+d.dataset.delv).delete(); }catch(err){} }
+});
+$("#newCountBtn").addEventListener("click", () => $("#newCountConfirm").hidden = false);
+$("#newCountNo").addEventListener("click", () => $("#newCountConfirm").hidden = true);
+$("#newCountYes").addEventListener("click", async () => {
+  if(!db) return; $("#newCountYes").disabled = true;
+  try{
+    for (const o of orders.filter(counts)) await db.doc("orders/"+o.id).update({ status: "archived" });
+    await db.doc("settings/main").set({ ...settings, stockDate: todayISO() });
+    $("#stockMsg").className="ok"; $("#stockMsg").textContent = "New count started. Type today's stock above.";
+  }catch(err){ $("#stockMsg").className="err"; $("#stockMsg").textContent = "Could not start a new count."; }
+  $("#newCountYes").disabled = false; $("#newCountConfirm").hidden = true;
+});
+$("#addVarForm").addEventListener("submit", async e => {
+  e.preventDefault(); const name = $("#nvName").value.trim(); const msg = $("#addVarMsg");
+  if(!name || !db) return;
+  let id = slug(name); if (varieties.some(v=>v.id===id)) id += "-" + Date.now().toString(36);
+  const order = varieties.reduce((m,v)=>Math.max(m, Number(v.order)||0), 0) + 1;
+  try{ await db.doc("varieties/"+id).set({ name, order, swatch: $("#nvColor").value, photo: "", stock: Object.fromEntries(GRADES.map(g=>[g,0])) }); msg.className="ok"; msg.textContent = name+" added."; $("#nvName").value=""; }
+  catch(err){ msg.className="err"; msg.textContent = "Could not add. You may have view-only access."; }
+});
+$("#settingsForm").addEventListener("submit", async e => {
+  e.preventDefault(); if(!db) return; const msg = $("#settingsMsg");
+  const next = { ...settings, title: $("#sTitle").value.trim(), subtitle: $("#sSub").value.trim(), contact: $("#sContact").value.trim(), foot: $("#sFoot").value.trim() };
+  try{ await db.doc("settings/main").set(next); msg.className="ok"; msg.textContent = "Saved."; }catch(err){ msg.className="err"; msg.textContent = "Could not save."; }
+});
+
+
+/* ---------- share: image + text ---------- */
+function shareRows(){
+  const bal = balances(), hideOut = $("#hideOut").checked;
+  const rows = [], col = Object.fromEntries(GRADES.map(g=>[g,0])); let total = 0;
+  for (const v of varieties){ if (v.hide) continue;
+    const q = GRADES.map(g => Math.max(0, bal[v.id][g])); const s = q.reduce((a,b)=>a+b,0);
+    GRADES.forEach((g,i)=>col[g]+=q[i]); total += s;
+    if (hideOut && s <= 0) continue; rows.push({ name: v.name, swatch: v.swatch || "#c2185b", q, s }); }
+  return { rows, col, total };
+}
+$("#copyTxt").addEventListener("click", async () => {
+  const { rows, col, total } = shareRows();
+  const w = Math.max(10, ...rows.map(r=>r.name.length)) + 1;
+  const pad = (x,n) => String(x).padStart(n);
+  const lines = [`${(settings.title||"LR Farms").toUpperCase()} – Rose availability ${fmtDate(todayISO()).replace(/ \d{4}$/,"")}`, "Stem length (cm) | qty in bunches", "", "Variety".padEnd(w) + GRADES.map(g=>pad(g,4)).join("")];
+  rows.forEach(r => lines.push(r.name.padEnd(w) + r.q.map(x=>pad(x||"-",4)).join("")));
+  lines.push("TOTAL".padEnd(w) + GRADES.map(g=>pad(col[g],4)).join("") + " = " + total);
+  const text = "```\n" + lines.join("\n") + "\n```" + (settings.foot ? "\n" + settings.foot : "") + (settings.contact ? "\n" + settings.contact : "");
+  try{ await navigator.clipboard.writeText(text); $("#shareMsg").textContent = "Copied. Paste it into WhatsApp."; }
+  catch(e){ const ta = document.createElement("textarea"); ta.value = text; ta.style.cssText="width:100%;height:220px;font-family:monospace"; ta.id="copyFallback"; $("#copyFallback")?.remove(); $("#shareBar").after(ta); ta.select(); $("#shareMsg").textContent = "Copy the text in the box below."; }
+});
+$("#saveImg").addEventListener("click", async () => {
+  const msg = $("#shareMsg");
+  try{ await Promise.all([document.fonts.load('700 30px Figtree'), document.fonts.load('400 30px Figtree'), document.fonts.load('700 60px "Bricolage Grotesque"')]); }catch(e){}
+  const { rows, col, total } = shareRows();
+  const W = 1080, M = 48, RH = 58, top = 250, H = top + RH*(rows.length+2) + 150;
+  const c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d");
+  const ff = (s,b) => `${b?"700":"400"} ${s}px Figtree, "Segoe UI", system-ui, sans-serif`;
+  const wine="#8e1f3d", fg="#2a1f22", mu="#7b6a6e", line="#e6dcdd";
+  x.fillStyle="#fbf8f8"; x.fillRect(0,0,W,H);
+  x.textBaseline="alphabetic"; x.fillStyle=wine; x.font=`700 66px "Bricolage Grotesque", Figtree, sans-serif`; x.fillText(settings.title||"LR Farms", M, 110);
+  x.fillStyle=mu; x.font=ff(24,true); x.fillText((settings.subtitle||"").toUpperCase(), M, 152);
+  x.textAlign="right"; x.font=ff(24); x.fillText("Available today", W-M, 78); x.fillStyle=fg; x.font=ff(34,true); x.fillText(fmtDate(todayISO()), W-M, 118); x.textAlign="left";
+  x.fillStyle=wine; x.fillRect(M,180,W-2*M,4);
+  x.fillStyle=mu; x.font=ff(22); x.fillText("Stem length in cm · quantity in bunches", M, 218);
+  if (settings.contact){ x.textAlign="right"; x.fillText(settings.contact, W-M, 218); x.textAlign="left"; }
+  const nameW=330, cw=(W-2*M-nameW)/6, xs=[...Array(6)].map((_,i)=>M+nameW+cw*i+cw/2);
+  x.textBaseline="middle";
+  x.fillStyle=wine; x.beginPath(); x.roundRect ? x.roundRect(M,top,W-2*M,RH,12) : x.rect(M,top,W-2*M,RH); x.fill();
+  x.fillStyle="#fff"; x.font=ff(26,true); x.fillText("Variety", M+20, top+RH/2); x.textAlign="center";
+  [...GRADES.map(g=>g+"+"),"Total"].forEach((h,i)=>x.fillText(h, xs[i], top+RH/2));
+  rows.forEach((r,ri) => { const y = top + RH*(ri+1);
+    if (ri%2){ x.fillStyle="#f3eded"; x.fillRect(M,y,W-2*M,RH); }
+    x.fillStyle="#f6e3e8"; x.fillRect(xs[5]-cw/2,y,W-M-(xs[5]-cw/2),RH);
+    x.fillStyle=r.swatch; x.beginPath(); x.arc(M+29,y+RH/2,13,0,7); x.fill(); x.strokeStyle="#cbbcc0"; x.lineWidth=1.5; x.stroke();
+    x.textAlign="left"; x.fillStyle=fg; x.font=ff(27,true); x.fillText(r.name, M+56, y+RH/2); x.textAlign="center";
+    r.q.forEach((q,i) => { x.font=ff(27,!!q); x.fillStyle = q ? (q<=5 ? "#9a5b00" : fg) : "#cfc2c5"; x.fillText(q ? String(q) : "–", xs[i], y+RH/2); });
+    x.fillStyle=wine; x.font=ff(27,true); x.fillText(String(r.s), xs[5], y+RH/2);
+    x.fillStyle=line; x.fillRect(M,y+RH-1,W-2*M,1);
+  });
+  let y = top + RH*(rows.length+1);
+  x.fillStyle="#efe6e8"; x.fillRect(M,y,W-2*M,RH+6); x.fillStyle=wine; x.fillRect(M,y,W-2*M,3);
+  x.textAlign="left"; x.fillStyle=fg; x.font=ff(28,true); x.fillText("Total", M+20, y+RH/2+3); x.textAlign="center";
+  GRADES.forEach((g,i)=>x.fillText(String(col[g]), xs[i], y+RH/2+3)); x.fillStyle=wine; x.fillText(String(total), xs[5], y+RH/2+3);
+  y += RH + 60; x.textAlign="left"; x.fillStyle=fg; x.font=ff(30,true); x.fillText(`Total available: ${total} bunches`, M, y);
+  if (settings.foot){ x.fillStyle=mu; x.font=ff(26); x.fillText(settings.foot, M, y+46); }
+  const blob = await new Promise(r => c.toBlob(r, "image/png"));
+  const fname = `${(settings.title||"LR Farms").replace(/[^\w ]+/g,"").trim()} Rose Availability ${todayISO()}.png`;
+  try{
+    const file = new File([blob], fname, { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })){
+      try{ await navigator.share({ files: [file], title: fname }); msg.textContent = "Shared."; return; }
+      catch(err){ if (err && err.name === "AbortError") return; }
+    }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = fname; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    msg.textContent = "Image downloaded. Send it on WhatsApp.";
+  }catch(err){ msg.textContent = "Couldn't save the image. Try Share view and a screenshot."; }
+});
+
+/* ---------- boot ---------- */
+addLine();
+document.querySelectorAll("#viewSwitch button").forEach(x=>x.setAttribute("aria-pressed", x.dataset.mode===catMode));
+renderAll();
+
+/* ---------- auth + live data (Firebase) ---------- */
+const FIREBASE_READY = !/^YOUR_/.test(firebaseConfig.apiKey);
+function applyRole(user){
+  document.body.classList.toggle("is-staff", canWrite);
+  $("#tab-ord").hidden = !canWrite; $("#tab-stk").hidden = !canWrite;
+  const ab = $("#authBar");
+  if (!FIREBASE_READY) ab.innerHTML = "";
+  else if (!user) ab.innerHTML = `<span class="hint">Staff only</span><button type="button" class="btn ghost" id="signIn">Staff sign in</button>`;
+  else ab.innerHTML = `<span class="hint">${esc(user.email||"")}${canWrite ? "" : " · not authorised for staff tools"}</span><button type="button" class="btn ghost" id="signOut">Sign out</button>`;
+  if (!canWrite) showTab("cat", false);
+}
+$("#authBar").addEventListener("click", async e => {
+  const m = $("#authMsg"); m.hidden = true;
+  if (e.target.id === "signIn"){
+    const p = new firebase.auth.GoogleAuthProvider();
+    try{ await auth.signInWithPopup(p); }
+    catch(err){
+      if (err.code === "auth/popup-blocked"){ auth.signInWithRedirect(p); return; }
+      if (err.code !== "auth/popup-closed-by-user" && err.code !== "auth/cancelled-popup-request"){ m.textContent = "Sign-in failed. Check that this site's domain is added under Firebase Authentication > Settings > Authorized domains."; m.hidden = false; }
+    }
+  }
+  if (e.target.id === "signOut") auth.signOut();
+});
+
+(function boot(){
+  applyRole(null);
+  if (!FIREBASE_READY){ $("#catEmpty").textContent = "Paste your Firebase config at the top of the script to load live stock."; $("#catEmpty").hidden = false; return; }
+  firebase.initializeApp(firebaseConfig);
+  auth = firebase.auth(); db = firebase.firestore();
+  db.collection("varieties").orderBy("order").onSnapshot(s => {
+    varieties = s.docs.map(x => ({ id: x.id, ...x.data() })); varsLoaded = true;
+    $("#catEmpty").textContent = varieties.length ? "" : (canWrite ? "No varieties yet. Add them in the Stock tab." : "No stock listed yet. Please check back soon.");
+    renderAll(); syncBooked();
+  }, () => { $("#catEmpty").textContent = "Couldn't load stock. Check your connection and refresh."; $("#catEmpty").hidden = false; });
+  db.doc("settings/main").onSnapshot(s => { if (s.exists) settings = { ...settings, ...s.data() }; renderAll(); }, () => {});
+  auth.onAuthStateChanged(user => {
+    if (unsubOrders){ unsubOrders(); unsubOrders = null; }
+    orders = []; ordersLoaded = false; canWrite = false;
+    applyRole(user); renderAll();
+    if (!user) return;
+    unsubOrders = db.collection("orders").orderBy("createdAt","desc").onSnapshot(s => {
+      orders = s.docs.map(x => ({ id: x.id, ...x.data() })); ordersLoaded = true; canWrite = true;
+      applyRole(user);
+      if (!restoredTab){ restoredTab = true; try{ const t = localStorage.getItem("lr-tab"); if (t) showTab(t, false); }catch(e){} }
+      renderAll(); syncBooked();
+    }, () => { canWrite = false; ordersLoaded = false; applyRole(user); renderAll(); });
+  });
+})();
+})();
+</script>
+
+</body></html>
