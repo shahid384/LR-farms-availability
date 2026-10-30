@@ -193,6 +193,18 @@ body.share .tabs, body.share .toolbar .staff, body.share .sharebar, body.share .
   .brand{font-size:24px}
   .line{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 64px 36px}
 }
+/* ---- history ---- */
+.hisbar{display:flex;gap:8px;align-items:center;margin:12px 0 8px}
+.hisbar input{flex:1;min-width:0;height:44px}
+.hisbar .btn{width:44px;padding:0;justify-content:center}
+.hday{margin-bottom:10px}
+.dayrow{width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;color:inherit;font:inherit;min-height:56px}
+.dayrow .hint{margin:2px 0 0;display:block}
+.hdetail{padding:10px 2px 2px;display:flex;flex-direction:column;gap:10px}
+.htable{width:100%;border-collapse:collapse;font-size:14px}
+.htable th,.htable td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+.htable th:first-child,.htable td:first-child{text-align:left;white-space:normal}
+.htable small{color:var(--muted)}
 /* ---- hosted version: roles + mobile ---- */
 html{-webkit-text-size-adjust:100%}
 [hidden]{display:none!important}
@@ -251,6 +263,7 @@ body.share .authbar, body.share #authMsg{display:none}
     <button role="tab" id="tab-cat" aria-selected="true" data-tab="cat">Catalogue</button>
     <button role="tab" id="tab-ord" aria-selected="false" data-tab="ord">Orders <span class="count num" id="openCount" hidden>0</span></button>
     <button role="tab" id="tab-stk" aria-selected="false" data-tab="stk">Stock</button>
+    <button role="tab" id="tab-his" aria-selected="false" data-tab="his">History</button>
   </div>
 
   <!-- CATALOGUE -->
@@ -276,6 +289,7 @@ body.share .authbar, body.share #authMsg{display:none}
     </div>
     <div class="sharebar staff staffonly" id="shareBar">
       <button class="btn primary" type="button" id="saveImg">Save image for WhatsApp</button>
+      <button class="btn" type="button" id="saveCards">Save photo cards image</button>
       <button class="btn" type="button" id="copyTxt">Copy WhatsApp text</button>
       <span id="shareMsg" class="hint"></span>
     </div>
@@ -308,6 +322,22 @@ body.share .authbar, body.share #authMsg{display:none}
       </div>
       <div class="olist" id="olist"></div>
     </div>
+  </section>
+
+  <!-- HISTORY -->
+  <section id="view-his" class="view" hidden>
+    <div class="panel">
+      <h2>History</h2>
+      <p class="hint" style="margin:0">Stock counts and orders by month and day. A day's stock is saved automatically whenever staff open the app or change counts.</p>
+      <div class="hisbar">
+        <button class="btn ghost" type="button" id="hisPrev" aria-label="Previous month">‹</button>
+        <input type="month" id="hisMonth" aria-label="Month">
+        <button class="btn ghost" type="button" id="hisNext" aria-label="Next month">›</button>
+      </div>
+      <div class="hint" id="hisSummary"></div>
+      <p class="hint" id="hisMsg"></p>
+    </div>
+    <div id="hisList"></div>
   </section>
 
   <!-- STOCK -->
@@ -381,6 +411,7 @@ let orders = [];          // [{id, ...}]
 let settings = { title:"LR Farms", subtitle:"Fresh rose availability", contact:"", foot:"Reply on WhatsApp to book", stockDate:"" };
 let filter = "active";
 let uploadingId = null, pickFor = null;
+let histMonth = todayISO().slice(0,7), histDocs = {}, histSel = "", lastSnap = "", snapTimer = null;
 let catMode = "table";
 try{ const m = localStorage.getItem("lr-cat"); if (m === "cards" || m === "table") catMode = m; }catch(e){}
 const counts = o => o.status === "open" || o.status === "dispatched";
@@ -400,6 +431,7 @@ function used(){
 // staff clients keep a public, anonymous "booked" total on each variety so the shared catalogue stays accurate without exposing customer orders
 function syncBooked(){
   if (!db || !canWrite || !ordersLoaded || !varsLoaded) return;
+  snapshotToday();
   clearTimeout(syncTimer);
   syncTimer = setTimeout(async () => {
     const u = used();
@@ -592,7 +624,7 @@ function renderPlan(bal, u){
     + (list("Overbooked:", over, "bad") + list("Booked out:", out, "warn") + list("Running low:", low, "warn") || `<div class="hint">No varieties are low or booked out.</div>`);
 }
 
-function renderAll(){ renderCatalogue(); renderOrders(); if(!document.activeElement?.closest("#stockTable")) renderStock(); refreshFormSelects(); }
+function renderAll(){ renderCatalogue(); renderOrders(); if(!document.activeElement?.closest("#stockTable")) renderStock(); refreshFormSelects(); if (!$("#view-his").hidden) renderHistory(); }
 
 /* ---------- tabs & toggles ---------- */
 function showTab(name, persist){
@@ -601,6 +633,7 @@ function showTab(name, persist){
   document.querySelectorAll(".tabs button").forEach(x => x.setAttribute("aria-selected", x.dataset.tab === name));
   document.querySelectorAll(".view").forEach(v => { v.hidden = v.id !== "view-"+name; });
   if (persist){ try{ localStorage.setItem("lr-tab", name); }catch(e){} }
+  if (name === "his") loadHistory();
   window.scrollTo(0, 0);
 }
 document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab, true)));
@@ -709,6 +742,7 @@ $("#newCountNo").addEventListener("click", () => $("#newCountConfirm").hidden = 
 $("#newCountYes").addEventListener("click", async () => {
   if(!db) return; $("#newCountYes").disabled = true;
   try{
+    await writeSnapshot();
     for (const o of orders.filter(counts)) await db.doc("orders/"+o.id).update({ status: "archived" });
     await db.doc("settings/main").set({ ...settings, stockDate: todayISO() });
     $("#stockMsg").className="ok"; $("#stockMsg").textContent = "New count started. Type today's stock above.";
@@ -737,7 +771,7 @@ function shareRows(){
   for (const v of varieties){ if (v.hide) continue;
     const q = GRADES.map(g => Math.max(0, bal[v.id][g])); const s = q.reduce((a,b)=>a+b,0);
     GRADES.forEach((g,i)=>col[g]+=q[i]); total += s;
-    if (hideOut && s <= 0) continue; rows.push({ name: v.name, swatch: v.swatch || "#c2185b", q, s }); }
+    if (hideOut && s <= 0) continue; rows.push({ name: v.name, swatch: v.swatch || "#c2185b", q, s, photo: v.photo || "" }); }
   return { rows, col, total };
 }
 $("#copyTxt").addEventListener("click", async () => {
@@ -800,6 +834,141 @@ $("#saveImg").addEventListener("click", async () => {
   }catch(err){ msg.textContent = "Couldn't save the image. Try Share view and a screenshot."; }
 });
 
+/* ---------- share: photo cards image ---------- */
+const loadImg = src => new Promise(res => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
+$("#saveCards").addEventListener("click", async () => {
+  const msg = $("#shareMsg"); msg.textContent = "Making image…";
+  try{ await Promise.all([document.fonts.load('700 30px Figtree'), document.fonts.load('400 30px Figtree'), document.fonts.load('700 60px "Bricolage Grotesque"')]); }catch(e){}
+  const { rows, total } = shareRows();
+  if (!rows.length){ msg.textContent = "Nothing to share yet."; return; }
+  const imgs = await Promise.all(rows.map(r => r.photo ? loadImg(r.photo) : null));
+  const W = 1080, M = 40, GAP = 24, CW = (W - 2*M - GAP) / 2, TXT = 150, CH = CW + TXT, top = 250;
+  const nRows = Math.ceil(rows.length / 2), H = top + nRows * (CH + GAP) + 140;
+  const c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d");
+  const ff = (sz, b) => `${b?"700":"400"} ${sz}px Figtree, "Segoe UI", system-ui, sans-serif`;
+  const wine = "#8e1f3d", fg = "#2a1f22", mu = "#7b6a6e", line = "#e6dcdd";
+  const rr = (px, py, w, h, r) => { x.beginPath(); x.roundRect ? x.roundRect(px, py, w, h, r) : x.rect(px, py, w, h); };
+  x.fillStyle = "#fbf8f8"; x.fillRect(0, 0, W, H);
+  x.textBaseline = "alphabetic"; x.fillStyle = wine; x.font = `700 66px "Bricolage Grotesque", Figtree, sans-serif`; x.fillText(settings.title || "LR Farms", M, 110);
+  x.fillStyle = mu; x.font = ff(24, true); x.fillText((settings.subtitle || "").toUpperCase(), M, 152);
+  x.textAlign = "right"; x.font = ff(24); x.fillText("Available today", W - M, 78); x.fillStyle = fg; x.font = ff(34, true); x.fillText(fmtDate(todayISO()), W - M, 118); x.textAlign = "left";
+  x.fillStyle = wine; x.fillRect(M, 180, W - 2*M, 4);
+  x.fillStyle = mu; x.font = ff(22); x.fillText("Stem length in cm · quantity in bunches", M, 218);
+  if (settings.contact){ x.textAlign = "right"; x.fillText(settings.contact, W - M, 218); x.textAlign = "left"; }
+  rows.forEach((r, i) => {
+    const cx = M + (i % 2) * (CW + GAP), cy = top + Math.floor(i / 2) * (CH + GAP);
+    x.save(); rr(cx, cy, CW, CW, 20); x.clip();
+    const im = imgs[i];
+    if (im){ const sw = Math.min(im.width, im.height); x.drawImage(im, (im.width - sw)/2, (im.height - sw)/2, sw, sw, cx, cy, CW, CW); }
+    else { x.fillStyle = "#f3eded"; x.fillRect(cx, cy, CW, CW); x.fillStyle = r.swatch; x.beginPath(); x.arc(cx + CW/2, cy + CW/2, CW*0.28, 0, 7); x.fill(); x.fillStyle = "rgba(255,255,255,.25)"; x.beginPath(); x.arc(cx + CW/2, cy + CW/2, CW*0.14, 0, 7); x.fill(); }
+    x.restore();
+    x.textBaseline = "alphabetic"; x.textAlign = "left"; x.fillStyle = fg; x.font = `700 32px "Bricolage Grotesque", Figtree, sans-serif`;
+    let nm = r.name; while (x.measureText(nm).width > CW - 130 && nm.length > 3) nm = nm.slice(0, -1); if (nm !== r.name) nm += "…";
+    x.fillText(nm, cx + 4, cy + CW + 44);
+    x.textAlign = "right"; x.fillStyle = wine; x.font = ff(26, true); x.fillText(r.s + " bn", cx + CW - 4, cy + CW + 44); x.textAlign = "left";
+    let px = cx + 4, py = cy + CW + 64; x.font = ff(23, true);
+    GRADES.forEach((g, gi) => {
+      const q = r.q[gi]; if (!q) return;
+      const label = g + "+  " + q, w = x.measureText(label).width + 24;
+      if (px + w > cx + CW){ px = cx + 4; py += 46; }
+      x.fillStyle = q <= 5 ? "#fbefd9" : "#f6e3e8"; rr(px, py, w, 38, 10); x.fill();
+      x.fillStyle = q <= 5 ? "#9a5b00" : wine; x.textBaseline = "middle"; x.fillText(label, px + 12, py + 20); x.textBaseline = "alphabetic";
+      px += w + 8;
+    });
+  });
+  let y = top + nRows * (CH + GAP) + 30;
+  x.fillStyle = line; x.fillRect(M, y - 30, W - 2*M, 2);
+  x.fillStyle = fg; x.font = ff(30, true); x.textAlign = "left"; x.fillText(`Total available: ${total} bunches`, M, y + 20);
+  if (settings.foot){ x.fillStyle = mu; x.font = ff(26); x.fillText(settings.foot, M, y + 64); }
+  const blob = await new Promise(r => c.toBlob(r, "image/png"));
+  const fname = `${(settings.title||"LR Farms").replace(/[^\w ]+/g,"").trim()} Rose Photos ${todayISO()}.png`;
+  try{
+    const file = new File([blob], fname, { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })){
+      try{ await navigator.share({ files: [file], title: fname }); msg.textContent = "Shared."; return; }
+      catch(err){ if (err && err.name === "AbortError"){ msg.textContent = ""; return; } }
+    }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = fname; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    msg.textContent = "Image downloaded. Send it on WhatsApp.";
+  }catch(err){ msg.textContent = "Couldn't save the image."; }
+});
+
+/* ---------- history: daily snapshots + month/day browser ---------- */
+async function writeSnapshot(){
+  if (!db || !canWrite || !ordersLoaded || !varsLoaded || !varieties.length) return;
+  const u = used();
+  const rows = varieties.map(v => ({
+    id: v.id, name: v.name, swatch: v.swatch || "",
+    stock: Object.fromEntries(GRADES.map(g => [g, Number(v.stock?.[g]) || 0])),
+    booked: Object.fromEntries(GRADES.map(g => [g, u[v.id+"|"+g] || 0]))
+  }));
+  const date = todayISO(), sig = date + JSON.stringify(rows);
+  if (sig === lastSnap) return;
+  try{
+    await db.doc("history/"+date).set({ date, rows, at: Date.now() });
+    lastSnap = sig;
+    if (histMonth === date.slice(0,7) && !$("#view-his").hidden) loadHistory();
+  }catch(e){}
+}
+function snapshotToday(){ clearTimeout(snapTimer); snapTimer = setTimeout(writeSnapshot, 2500); }
+
+async function loadHistory(){
+  if (!db || !canWrite) return;
+  const m = histMonth;
+  $("#hisMsg").textContent = "Loading…";
+  try{
+    const snap = await db.collection("history").where("date", ">=", m+"-01").where("date", "<=", m+"-31").get();
+    if (m !== histMonth) return;
+    histDocs = {}; snap.docs.forEach(d => { histDocs[d.id] = d.data(); });
+    $("#hisMsg").textContent = "";
+  }catch(e){ $("#hisMsg").textContent = "Couldn't load history. Check the Firestore rules include the history block."; }
+  renderHistory();
+}
+const sumG = o => GRADES.reduce((a,g) => a + (Number(o?.[g]) || 0), 0);
+const orderQty = o => (o.items||[]).reduce((a,it) => a + (Number(it.q) || 0), 0);
+function renderHistory(){
+  const m = histMonth; $("#hisMonth").value = m;
+  const mo = orders.filter(o => (o.date||"").startsWith(m));
+  const byDate = {}; mo.forEach(o => { (byDate[o.date] = byDate[o.date] || []).push(o); });
+  const days = [...new Set([...Object.keys(histDocs), ...Object.keys(byDate)])].sort().reverse();
+  const live = mo.filter(o => o.status !== "cancelled");
+  const cancelled = mo.length - live.length;
+  $("#hisSummary").innerHTML = `<b>${live.length}</b> orders · <b>${live.reduce((a,o)=>a+orderQty(o),0)}</b> bunches ordered` + (cancelled ? ` · ${cancelled} cancelled` : "") + ` · ${Object.keys(histDocs).length} days of stock saved`;
+  if (!days.length){ $("#hisList").innerHTML = `<div class="empty">Nothing recorded for this month.</div>`; return; }
+  $("#hisList").innerHTML = days.map(d => {
+    const h = histDocs[d], os = byDate[d] || [];
+    const cnt = h ? h.rows.reduce((a,r)=>a+sumG(r.stock),0) : 0, bk = h ? h.rows.reduce((a,r)=>a+sumG(r.booked),0) : 0;
+    const l1 = h ? `Stock <b>${cnt}</b> · Booked <b>${bk}</b> · Left <b>${cnt-bk}</b>` : "No stock record";
+    const ob = os.filter(o => o.status !== "cancelled").reduce((a,o)=>a+orderQty(o),0);
+    const l2 = os.length ? `${os.length} order${os.length>1?"s":""} · ${ob} bunches` : "No orders";
+    const open = histSel === d;
+    return `<div class="hday"><button type="button" class="dayrow" data-day="${esc(d)}" aria-expanded="${open}"><span><b>${esc(fmtDate(d))}</b><span class="hint">${l1}</span></span><span class="hint">${l2}</span></button>${open ? histDetail(h, os) : ""}</div>`;
+  }).join("");
+}
+function histDetail(h, os){
+  const nm = id => h?.rows.find(r => r.id === id)?.name || varieties.find(v => v.id === id)?.name || id;
+  let stock = "";
+  if (h){
+    const rows = h.rows.map(r => `<tr><td>${esc(r.name)}</td>${GRADES.map(g => { const n = Number(r.stock?.[g])||0, b = Number(r.booked?.[g])||0; return `<td class="num">${n}${b ? `<small> −${b}</small>` : ""}</td>`; }).join("")}<td class="num"><b>${sumG(r.stock)}</b></td></tr>`).join("");
+    stock = `<div class="tablewrap"><table class="htable"><thead><tr><th>Variety</th>${GRADES.map(g=>`<th>${g}+</th>`).join("")}<th>Total</th></tr></thead><tbody>${rows}</tbody></table></div><p class="hint" style="margin:0">Counted stock, with bunches booked after the minus sign.</p>`;
+  }
+  const ords = os.map(o => {
+    const items = (o.items||[]).map(it => `<span><b>${esc(nm(it.v))}</b> ${esc(it.g)}+ × <span class="num">${Number(it.q)||0}</span></span>`).join("");
+    return `<div class="order ${esc(o.status)}"><div class="ohead"><div><h3>${esc(o.customer)}</h3><div class="ometa">${o.phone ? esc(o.phone)+" · " : ""}<span class="num">${orderQty(o)}</span> bunches</div></div><span class="pill ${esc(o.status)}">${esc(o.status)}</span></div><div class="oitems">${items}</div>${o.note ? `<div class="ometa">${esc(o.note)}</div>` : ""}</div>`;
+  }).join("");
+  return `<div class="hdetail">${stock}${ords}${!stock && !ords ? `<div class="empty">Nothing recorded.</div>` : ""}</div>`;
+}
+$("#hisList").addEventListener("click", e => {
+  const b = e.target.closest("[data-day]"); if (!b) return;
+  histSel = histSel === b.dataset.day ? "" : b.dataset.day; renderHistory();
+});
+function setHisMonth(m){ if (!/^\d{4}-\d{2}$/.test(m)) return; histMonth = m; histSel = ""; histDocs = {}; loadHistory(); renderHistory(); }
+$("#hisMonth").addEventListener("change", e => setHisMonth(e.target.value));
+const shiftMonth = n => { const [y,m] = histMonth.split("-").map(Number); const d = new Date(y, m-1+n, 1); setHisMonth(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")); };
+$("#hisPrev").addEventListener("click", () => shiftMonth(-1));
+$("#hisNext").addEventListener("click", () => shiftMonth(1));
+
 /* ---------- boot ---------- */
 addLine();
 document.querySelectorAll("#viewSwitch button").forEach(x=>x.setAttribute("aria-pressed", x.dataset.mode===catMode));
@@ -809,7 +978,7 @@ renderAll();
 const FIREBASE_READY = !/^YOUR_/.test(firebaseConfig.apiKey);
 function applyRole(user){
   document.body.classList.toggle("is-staff", canWrite);
-  $("#tab-ord").hidden = !canWrite; $("#tab-stk").hidden = !canWrite;
+  $("#tab-ord").hidden = !canWrite; $("#tab-stk").hidden = !canWrite; $("#tab-his").hidden = !canWrite;
   const ab = $("#authBar");
   if (!FIREBASE_READY) ab.innerHTML = "";
   else if (!user) ab.innerHTML = `<span class="hint">Staff only</span><button type="button" class="btn ghost" id="signIn">Staff sign in</button>`;
