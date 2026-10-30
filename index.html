@@ -205,6 +205,8 @@ body.share .tabs, body.share .toolbar .staff, body.share .sharebar, body.share .
 .htable th,.htable td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
 .htable th:first-child,.htable td:first-child{text-align:left;white-space:normal}
 .htable small{color:var(--muted)}
+.chglog{border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;font-size:14px;display:flex;flex-direction:column;gap:10px;max-height:340px;overflow:auto}
+.chglog .hint{margin:0;display:block}
 /* ---- hosted version: roles + mobile ---- */
 html{-webkit-text-size-adjust:100%}
 [hidden]{display:none!important}
@@ -328,7 +330,7 @@ body.share .authbar, body.share #authMsg{display:none}
   <section id="view-his" class="view" hidden>
     <div class="panel">
       <h2>History</h2>
-      <p class="hint" style="margin:0">Stock counts and orders by month and day. A day's stock is saved automatically whenever staff open the app or change counts.</p>
+      <p class="hint" style="margin:0">Stock counts and orders by month and day. Stock is saved automatically whenever staff open the app or change counts, and every change is logged with its time.</p>
       <div class="hisbar">
         <button class="btn ghost" type="button" id="hisPrev" aria-label="Previous month">‹</button>
         <input type="month" id="hisMonth" aria-label="Month">
@@ -411,7 +413,7 @@ let orders = [];          // [{id, ...}]
 let settings = { title:"LR Farms", subtitle:"Fresh rose availability", contact:"", foot:"Reply on WhatsApp to book", stockDate:"" };
 let filter = "active";
 let uploadingId = null, pickFor = null;
-let histMonth = todayISO().slice(0,7), histDocs = {}, histSel = "", lastSnap = "", snapTimer = null;
+let histMonth = todayISO().slice(0,7), histDocs = {}, histSel = "", lastSnap = "", lastRows = null, lastSnapDate = "", snapTimer = null;
 let catMode = "table";
 try{ const m = localStorage.getItem("lr-cat"); if (m === "cards" || m === "table") catMode = m; }catch(e){}
 const counts = o => o.status === "open" || o.status === "dispatched";
@@ -895,6 +897,21 @@ $("#saveCards").addEventListener("click", async () => {
 });
 
 /* ---------- history: daily snapshots + month/day browser ---------- */
+function diffRows(prev, next){
+  if (!prev) return [];
+  const out = [], pm = new Map(prev.map(r => [r.id, r]));
+  for (const r of next){
+    const p = pm.get(r.id); pm.delete(r.id);
+    for (const g of GRADES){
+      const a = Number(p?.stock?.[g]) || 0, b = r.stock[g];
+      if (a !== b) out.push({ v: r.name, g, k: "stock", a, b });
+      const c = Number(p?.booked?.[g]) || 0, d = r.booked[g];
+      if (c !== d) out.push({ v: r.name, g, k: "booked", a: c, b: d });
+    }
+  }
+  for (const p of pm.values()) for (const g of GRADES){ const a = Number(p.stock?.[g]) || 0; if (a) out.push({ v: p.name, g, k: "stock", a, b: 0 }); }
+  return out;
+}
 async function writeSnapshot(){
   if (!db || !canWrite || !ordersLoaded || !varsLoaded || !varieties.length) return;
   const u = used();
@@ -906,8 +923,13 @@ async function writeSnapshot(){
   const date = todayISO(), sig = date + JSON.stringify(rows);
   if (sig === lastSnap) return;
   try{
-    await db.doc("history/"+date).set({ date, rows, at: Date.now() });
-    lastSnap = sig;
+    let prev = date === lastSnapDate ? lastRows : null;
+    if (!prev){ const d = await db.doc("history/"+date).get(); prev = d.exists ? (d.data().rows || null) : null; }
+    const changes = diffRows(prev, rows);
+    const data = { date, rows, at: Date.now() };
+    if (changes.length) data.log = firebase.firestore.FieldValue.arrayUnion({ at: Date.now(), by: auth?.currentUser?.email || "", ch: changes });
+    await db.doc("history/"+date).set(data, { merge: true });
+    lastSnap = sig; lastRows = rows; lastSnapDate = date;
     if (histMonth === date.slice(0,7) && !$("#view-his").hidden) loadHistory();
   }catch(e){}
 }
@@ -957,7 +979,9 @@ function histDetail(h, os){
     const items = (o.items||[]).map(it => `<span><b>${esc(nm(it.v))}</b> ${esc(it.g)}+ × <span class="num">${Number(it.q)||0}</span></span>`).join("");
     return `<div class="order ${esc(o.status)}"><div class="ohead"><div><h3>${esc(o.customer)}</h3><div class="ometa">${o.phone ? esc(o.phone)+" · " : ""}<span class="num">${orderQty(o)}</span> bunches</div></div><span class="pill ${esc(o.status)}">${esc(o.status)}</span></div><div class="oitems">${items}</div>${o.note ? `<div class="ometa">${esc(o.note)}</div>` : ""}</div>`;
   }).join("");
-  return `<div class="hdetail">${stock}${ords}${!stock && !ords ? `<div class="empty">Nothing recorded.</div>` : ""}</div>`;
+  const log = (h?.log || []).slice().sort((a,b) => b.at - a.at);
+  const changes = log.length ? `<div class="chglog"><b>Changes during the day</b>${log.map(e => `<div><span class="hint">${esc(new Date(e.at).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}))}${e.by ? " · "+esc(e.by) : ""}</span>${(e.ch||[]).map(c => `<div>${esc(c.v)} ${esc(c.g)}+ ${c.k==="booked" ? "booked" : "counted"} <b>${Number(c.a)||0} → ${Number(c.b)||0}</b></div>`).join("")}</div>`).join("")}</div>` : "";
+  return `<div class="hdetail">${stock}${changes}${ords}${!stock && !ords ? `<div class="empty">Nothing recorded.</div>` : ""}</div>`;
 }
 $("#hisList").addEventListener("click", e => {
   const b = e.target.closest("[data-day]"); if (!b) return;
