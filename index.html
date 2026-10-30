@@ -305,10 +305,11 @@ body.share .authbar, body.share #authMsg{display:none}
     <form class="panel" id="orderForm" autocomplete="off">
       <h2>New order</h2>
       <div class="row">
-        <div class="field"><label for="oCust">Customer</label><input id="oCust" required placeholder="Name or shop"></div>
+        <div class="field"><label for="oCust">Customer</label><input id="oCust" required placeholder="Name or shop" list="custList"><datalist id="custList"></datalist></div>
         <div class="field"><label for="oPhone">Phone</label><input id="oPhone" inputmode="tel" placeholder="Optional"></div>
         <div class="field"><label for="oDate">Delivery date</label><input id="oDate" type="date"></div>
       </div>
+      <div id="repeatRow" class="toolbar" hidden><button type="button" class="btn" id="repeatBtn">Repeat last order</button><span class="hint" id="repeatInfo" style="margin:0"></span></div>
       <div id="lines" style="display:flex;flex-direction:column;gap:10px"></div>
       <div><button type="button" class="btn" id="addLine">+ Add another variety</button></div>
       <div class="field"><label for="oNote">Note</label><input id="oNote" placeholder="Optional: rate, transport, packing"></div>
@@ -626,7 +627,7 @@ function renderPlan(bal, u){
     + (list("Overbooked:", over, "bad") + list("Booked out:", out, "warn") + list("Running low:", low, "warn") || `<div class="hint">No varieties are low or booked out.</div>`);
 }
 
-function renderAll(){ renderCatalogue(); renderOrders(); if(!document.activeElement?.closest("#stockTable")) renderStock(); refreshFormSelects(); if (!$("#view-his").hidden) renderHistory(); }
+function renderAll(){ renderCatalogue(); renderOrders(); if(!document.activeElement?.closest("#stockTable")) renderStock(); refreshFormSelects(); if (!$("#view-his").hidden) renderHistory(); refreshCustomers(); }
 
 /* ---------- tabs & toggles ---------- */
 function showTab(name, persist){
@@ -696,7 +697,7 @@ $("#orderForm").addEventListener("submit", async e => {
   try{
     await db.collection("orders").add({ customer: $("#oCust").value.trim(), phone: $("#oPhone").value.trim(), date: $("#oDate").value || todayISO(), note: $("#oNote").value.trim(), items, status: "open", createdAt: Date.now() });
     msg.className = "ok"; msg.textContent = "Order saved. Catalogue balance updated.";
-    ["oCust","oPhone","oNote"].forEach(id => $("#"+id).value = ""); $("#lines").innerHTML = ""; addLine();
+    ["oCust","oPhone","oNote"].forEach(id => $("#"+id).value = ""); $("#repeatRow").hidden = true; $("#lines").innerHTML = ""; addLine();
   }catch(err){ msg.textContent = err?.code==="permission-denied" ? "You are not signed in as staff, so orders can't be saved." : "Order not saved. Check your connection and try again."; }
   $("#saveOrder").disabled = false;
 });
@@ -992,6 +993,52 @@ $("#hisMonth").addEventListener("change", e => setHisMonth(e.target.value));
 const shiftMonth = n => { const [y,m] = histMonth.split("-").map(Number); const d = new Date(y, m-1+n, 1); setHisMonth(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")); };
 $("#hisPrev").addEventListener("click", () => shiftMonth(-1));
 $("#hisNext").addEventListener("click", () => shiftMonth(1));
+
+/* ---------- returning customers: suggestions, phone autofill, repeat last order ---------- */
+const custKey = t => String(t||"").trim().toLowerCase();
+function customerBook(){
+  const book = new Map();   // orders are newest first
+  for (const o of orders){
+    const k = custKey(o.customer); if (!k) continue;
+    const c = book.get(k) || { name: o.customer, phone: "", last: null, lastAny: o };
+    if (!c.phone && o.phone) c.phone = o.phone;
+    if (!c.last && o.status !== "cancelled" && (o.items||[]).length) c.last = o;
+    book.set(k, c);
+  }
+  return book;
+}
+function refreshCustomers(){
+  const dl = $("#custList"); if (!dl) return;
+  dl.innerHTML = [...customerBook().values()].map(c => `<option value="${esc(c.name)}"></option>`).join("");
+  matchCustomer(false);
+}
+function matchCustomer(fill){
+  const c = customerBook().get(custKey($("#oCust").value));
+  const row = $("#repeatRow");
+  if (!c){ row.hidden = true; return; }
+  if (fill && !$("#oPhone").value.trim() && c.phone) $("#oPhone").value = c.phone;
+  if (c.last){
+    row.hidden = false;
+    $("#repeatInfo").textContent = `Last order ${fmtDate(c.last.date)} · ${orderQty(c.last)} bunches`;
+  } else row.hidden = true;
+}
+$("#oCust").addEventListener("input", () => matchCustomer(true));
+$("#oCust").addEventListener("change", () => matchCustomer(true));
+$("#repeatBtn").addEventListener("click", () => {
+  const c = customerBook().get(custKey($("#oCust").value)); if (!c || !c.last) return;
+  const items = (c.last.items||[]).filter(it => varieties.some(v => v.id === it.v));
+  const msg = $("#orderMsg");
+  if (!items.length){ msg.className = "err"; msg.textContent = "Those varieties are no longer listed."; return; }
+  $("#lines").innerHTML = "";
+  for (const it of items){
+    addLine({ v: it.v });
+    const el = $("#lines").lastElementChild, gs = el.querySelector(".lg");
+    if ([...gs.options].some(o => o.value === it.g && !o.disabled)) gs.value = it.g;
+    el.querySelector(".lq").value = Number(it.q) || "";
+  }
+  checkLines();
+  msg.className = "ok"; msg.textContent = "Last order copied. Check the amounts against today's stock.";
+});
 
 /* ---------- boot ---------- */
 addLine();
