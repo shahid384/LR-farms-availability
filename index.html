@@ -4,7 +4,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#8e1f3d">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>LR Farms Rose Availability</title>
+<title>New Buds N Blooms Rose Availability</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap">
@@ -193,6 +193,12 @@ body.share .tabs, body.share .toolbar .staff, body.share .sharebar, body.share .
   .brand{font-size:24px}
   .line{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 64px 36px}
 }
+/* ---- orders table, tracking ---- */
+.otable tfoot td{font-weight:700;background:var(--sunk)}
+.pill.processing{background:#fbefd9;color:#9a5b00}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .pill.processing{background:#3a2c12;color:#f0b25a}}
+.oactions .btn.on{background:var(--wine);color:#fff;border-color:var(--wine);opacity:1}
+.srow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
 /* ---- history ---- */
 .hisbar{display:flex;gap:8px;align-items:center;margin:12px 0 8px}
 .hisbar input{flex:1;min-width:0;height:44px}
@@ -278,7 +284,7 @@ body.share .authbar, body.share #authMsg{display:none}
     <div class="sheet" id="sheet">
       <div class="sheet-head">
         <div>
-          <div class="brand" id="brandName">LR Farms</div>
+          <div class="brand" id="brandName">New Buds N Blooms</div>
           <div class="brand-sub" id="brandSub">Fresh rose availability</div>
         </div>
         <div class="asof"><span>Available today</span><b id="todayLabel">–</b></div>
@@ -384,6 +390,17 @@ body.share .authbar, body.share #authMsg{display:none}
       </div>
       <div class="toolbar"><button class="btn primary" type="submit">Save heading</button><span id="settingsMsg"></span></div>
     </form>
+
+    <div class="panel" id="staffPanel">
+      <h2>Staff access</h2>
+      <p class="hint" style="margin:0">Add the Google email of anyone who should manage stock and orders. They open this page and tap <b>Staff sign in</b>. Only the owner can add or remove people.</p>
+      <form id="staffForm" class="toolbar" autocomplete="off">
+        <input id="staffEmail" type="email" inputmode="email" placeholder="name@gmail.com" required style="flex:1;min-width:0">
+        <button class="btn primary" type="submit">Add</button>
+      </form>
+      <p class="hint" id="staffMsg" style="margin:0"></p>
+      <div id="staffList"></div>
+    </div>
   </section>
 </div>
 <input type="file" id="filePick" accept="image/*" hidden>
@@ -411,13 +428,13 @@ const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""
 let db = null, auth = null, canWrite = false, ordersLoaded = false, varsLoaded = false, unsubOrders = null, syncTimer = null, restoredTab = false;
 let varieties = [];       // [{id, name, order, swatch, photo, stock:{}}]
 let orders = [];          // [{id, ...}]
-let settings = { title:"LR Farms", subtitle:"Fresh rose availability", contact:"", foot:"Reply on WhatsApp to book", stockDate:"" };
+let settings = { title:"New Buds N Blooms", subtitle:"Fresh rose availability", contact:"", foot:"Reply on WhatsApp to book", stockDate:"" };
 let filter = "active";
 let uploadingId = null, pickFor = null;
 let histMonth = todayISO().slice(0,7), histDocs = {}, histSel = "", lastSnap = "", lastRows = null, lastSnapDate = "", snapTimer = null;
 let catMode = "table";
 try{ const m = localStorage.getItem("lr-cat"); if (m === "cards" || m === "table") catMode = m; }catch(e){}
-const counts = o => o.status === "open" || o.status === "dispatched";
+const counts = o => o.status === "open" || o.status === "processing" || o.status === "dispatched";
 
 /* ---------- balance ---------- */
 function used(){
@@ -465,7 +482,7 @@ function renderCatalogue(){
   const bal = balances();
   const hideOut = $("#hideOut").checked;
   const share = document.body.classList.contains("share");
-  $("#brandName").textContent = settings.title || "LR Farms";
+  $("#brandName").textContent = settings.title || "New Buds N Blooms";
   $("#brandSub").textContent = settings.subtitle || "";
   $("#contactLine").textContent = settings.contact || "";
   $("#footNote").textContent = settings.foot || "";
@@ -562,24 +579,37 @@ function refreshFormSelects(){
 /* ---------- render: orders list ---------- */
 function renderOrders(){
   const name = id => varieties.find(v=>v.id===id)?.name || id;
-  const list = orders.filter(o => filter==="all" ? true : (o.status==="open" || o.status==="dispatched"));
-  const open = orders.filter(o=>o.status==="open").length;
+  const list = orders.filter(o => filter==="all" ? true : counts(o));
+  const open = orders.filter(o=>o.status==="open" || o.status==="processing").length;
   $("#openCount").hidden = !open; $("#openCount").textContent = open;
   if (!list.length){ $("#olist").innerHTML = `<div class="empty">${filter==="all"?"No orders yet.":"No active orders."} Saved orders appear here and reduce the catalogue balance.</div>`; return; }
   $("#olist").innerHTML = list.map(o => {
-    const items = (o.items||[]).map(it => `<span><b>${esc(name(it.v))}</b> ${esc(it.g)}+ × <span class="num">${Number(it.q)||0}</span></span>`).join("");
-    const tot = (o.items||[]).reduce((a,it)=>a+(Number(it.q)||0),0);
-    const acts = !canWrite ? "" : o.status==="open"
-      ? `<button class="btn" data-act="dispatched" data-id="${esc(o.id)}">Mark dispatched</button><button class="btn danger" data-act="cancelled" data-id="${esc(o.id)}">Cancel order</button>`
-      : o.status==="dispatched" ? `<button class="btn ghost" data-act="open" data-id="${esc(o.id)}">Back to open</button>`
-      : o.status==="cancelled" ? `<button class="btn ghost" data-act="open" data-id="${esc(o.id)}">Restore</button>` : "";
-    return `<div class="order ${esc(o.status)}">
-      <div class="ohead"><div><h3>${esc(o.customer)}</h3><div class="ometa">${fmtDate(o.date)}${o.phone?" · "+esc(o.phone):""} · <span class="num">${tot}</span> bunches</div></div><span class="pill ${esc(o.status)}">${esc(o.status)}</span></div>
-      <div class="oitems">${items}</div>
+    const tot = orderQty(o), id = esc(o.id), st = o.status;
+    const when = ts => new Date(ts).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+    const stamp = st === "dispatched" && o.dispatchedAt ? ` · Dispatched ${when(o.dispatchedAt)}` : st === "processing" && o.processingAt ? ` · Processing since ${when(o.processingAt)}` : "";
+    const track = st === "open" || st === "processing" || st === "dispatched";
+    const tb = (act, label) => `<button type="button" class="btn${st===act?" on":""}" data-act="${act}" data-id="${id}"${st===act?" disabled":""}>${label}</button>`;
+    const acts = !canWrite ? "" : track
+      ? tb("processing", "Processing") + tb("dispatched", "Dispatched")
+        + (st !== "open" ? `<button type="button" class="btn ghost" data-act="open" data-id="${id}">Back to open</button>` : "")
+        + (st !== "dispatched" ? `<button type="button" class="btn danger" data-act="cancelled" data-id="${id}">Cancel order</button>` : "")
+      : st === "cancelled" ? `<button type="button" class="btn ghost" data-act="open" data-id="${id}">Restore</button>` : "";
+    return `<div class="order ${esc(st)}">
+      <div class="ohead"><div><h3>${esc(o.customer)}</h3><div class="ometa">${fmtDate(o.date)}${o.phone?" · "+esc(o.phone):""} · <span class="num">${tot}</span> bunches${stamp}</div></div><span class="pill ${esc(st)}">${esc(st)}</span></div>
+      ${orderTable(o, name)}
       ${o.note?`<div class="ometa">${esc(o.note)}</div>`:""}
       ${acts?`<div class="oactions">${acts}</div>`:""}
     </div>`;
   }).join("");
+}
+function orderTable(o, nm){
+  const its = o.items || [];
+  const gs = GRADES.filter(g => its.some(it => String(it.g) === String(g)));
+  const ids = []; its.forEach(it => { if (!ids.includes(it.v)) ids.push(it.v); });
+  const cell = (v, g) => its.filter(it => it.v === v && String(it.g) === String(g)).reduce((a, it) => a + (Number(it.q) || 0), 0);
+  const rows = ids.map(v => `<tr><td>${esc(nm(v))}</td>${gs.map(g => `<td class="num">${cell(v,g) || "–"}</td>`).join("")}<td class="num"><b>${gs.reduce((a,g)=>a+cell(v,g),0)}</b></td></tr>`).join("");
+  const foot = `<tr><td>Total</td>${gs.map(g => `<td class="num">${ids.reduce((a,v)=>a+cell(v,g),0)}</td>`).join("")}<td class="num">${orderQty(o)}</td></tr>`;
+  return `<div class="tablewrap"><table class="htable otable"><thead><tr><th>Variety</th>${gs.map(g=>`<th>${g}+</th>`).join("")}<th>Total</th></tr></thead><tbody>${rows}</tbody><tfoot>${foot}</tfoot></table></div>`;
 }
 
 /* ---------- render: stock table ---------- */
@@ -704,7 +734,10 @@ $("#orderForm").addEventListener("submit", async e => {
 $("#ofilters").addEventListener("click", e => { const b = e.target.closest("[data-f]"); if(!b) return; filter = b.dataset.f; document.querySelectorAll("#ofilters button").forEach(x=>x.setAttribute("aria-pressed", x===b)); renderOrders(); });
 $("#olist").addEventListener("click", async e => {
   const b = e.target.closest("[data-act]"); if(!b || !db) return; b.disabled = true;
-  try{ await db.doc("orders/"+b.dataset.id).update({ status: b.dataset.act }); }catch(err){ b.disabled = false; }
+  const act = b.dataset.act, upd = { status: act };
+  if (act === "processing") upd.processingAt = Date.now();
+  if (act === "dispatched") upd.dispatchedAt = Date.now();
+  try{ await db.doc("orders/"+b.dataset.id).update(upd); }catch(err){ b.disabled = false; }
 });
 
 /* ---------- stock ---------- */
@@ -781,7 +814,7 @@ $("#copyTxt").addEventListener("click", async () => {
   const { rows, col, total } = shareRows();
   const w = Math.max(10, ...rows.map(r=>r.name.length)) + 1;
   const pad = (x,n) => String(x).padStart(n);
-  const lines = [`${(settings.title||"LR Farms").toUpperCase()} – Rose availability ${fmtDate(todayISO()).replace(/ \d{4}$/,"")}`, "Stem length (cm) | qty in bunches", "", "Variety".padEnd(w) + GRADES.map(g=>pad(g,4)).join("")];
+  const lines = [`${(settings.title||"New Buds N Blooms").toUpperCase()} – Rose availability ${fmtDate(todayISO()).replace(/ \d{4}$/,"")}`, "Stem length (cm) | qty in bunches", "", "Variety".padEnd(w) + GRADES.map(g=>pad(g,4)).join("")];
   rows.forEach(r => lines.push(r.name.padEnd(w) + r.q.map(x=>pad(x||"-",4)).join("")));
   lines.push("TOTAL".padEnd(w) + GRADES.map(g=>pad(col[g],4)).join("") + " = " + total);
   const text = "```\n" + lines.join("\n") + "\n```" + (settings.foot ? "\n" + settings.foot : "") + (settings.contact ? "\n" + settings.contact : "");
@@ -797,7 +830,7 @@ $("#saveImg").addEventListener("click", async () => {
   const ff = (s,b) => `${b?"700":"400"} ${s}px Figtree, "Segoe UI", system-ui, sans-serif`;
   const wine="#8e1f3d", fg="#2a1f22", mu="#7b6a6e", line="#e6dcdd";
   x.fillStyle="#fbf8f8"; x.fillRect(0,0,W,H);
-  x.textBaseline="alphabetic"; x.fillStyle=wine; x.font=`700 66px "Bricolage Grotesque", Figtree, sans-serif`; x.fillText(settings.title||"LR Farms", M, 110);
+  x.textBaseline="alphabetic"; x.fillStyle=wine; x.font=`700 66px "Bricolage Grotesque", Figtree, sans-serif`; x.fillText(settings.title||"New Buds N Blooms", M, 110);
   x.fillStyle=mu; x.font=ff(24,true); x.fillText((settings.subtitle||"").toUpperCase(), M, 152);
   x.textAlign="right"; x.font=ff(24); x.fillText("Available today", W-M, 78); x.fillStyle=fg; x.font=ff(34,true); x.fillText(fmtDate(todayISO()), W-M, 118); x.textAlign="left";
   x.fillStyle=wine; x.fillRect(M,180,W-2*M,4);
@@ -824,7 +857,7 @@ $("#saveImg").addEventListener("click", async () => {
   y += RH + 60; x.textAlign="left"; x.fillStyle=fg; x.font=ff(30,true); x.fillText(`Total available: ${total} bunches`, M, y);
   if (settings.foot){ x.fillStyle=mu; x.font=ff(26); x.fillText(settings.foot, M, y+46); }
   const blob = await new Promise(r => c.toBlob(r, "image/png"));
-  const fname = `${(settings.title||"LR Farms").replace(/[^\w ]+/g,"").trim()} Rose Availability ${todayISO()}.png`;
+  const fname = `${(settings.title||"New Buds N Blooms").replace(/[^\w ]+/g,"").trim()} Rose Availability ${todayISO()}.png`;
   try{
     const file = new File([blob], fname, { type: "image/png" });
     if (navigator.canShare && navigator.canShare({ files: [file] })){
@@ -852,7 +885,7 @@ $("#saveCards").addEventListener("click", async () => {
   const wine = "#8e1f3d", fg = "#2a1f22", mu = "#7b6a6e", line = "#e6dcdd";
   const rr = (px, py, w, h, r) => { x.beginPath(); x.roundRect ? x.roundRect(px, py, w, h, r) : x.rect(px, py, w, h); };
   x.fillStyle = "#fbf8f8"; x.fillRect(0, 0, W, H);
-  x.textBaseline = "alphabetic"; x.fillStyle = wine; x.font = `700 66px "Bricolage Grotesque", Figtree, sans-serif`; x.fillText(settings.title || "LR Farms", M, 110);
+  x.textBaseline = "alphabetic"; x.fillStyle = wine; x.font = `700 66px "Bricolage Grotesque", Figtree, sans-serif`; x.fillText(settings.title || "New Buds N Blooms", M, 110);
   x.fillStyle = mu; x.font = ff(24, true); x.fillText((settings.subtitle || "").toUpperCase(), M, 152);
   x.textAlign = "right"; x.font = ff(24); x.fillText("Available today", W - M, 78); x.fillStyle = fg; x.font = ff(34, true); x.fillText(fmtDate(todayISO()), W - M, 118); x.textAlign = "left";
   x.fillStyle = wine; x.fillRect(M, 180, W - 2*M, 4);
@@ -884,7 +917,7 @@ $("#saveCards").addEventListener("click", async () => {
   x.fillStyle = fg; x.font = ff(30, true); x.textAlign = "left"; x.fillText(`Total available: ${total} bunches`, M, y + 20);
   if (settings.foot){ x.fillStyle = mu; x.font = ff(26); x.fillText(settings.foot, M, y + 64); }
   const blob = await new Promise(r => c.toBlob(r, "image/png"));
-  const fname = `${(settings.title||"LR Farms").replace(/[^\w ]+/g,"").trim()} Rose Photos ${todayISO()}.png`;
+  const fname = `${(settings.title||"New Buds N Blooms").replace(/[^\w ]+/g,"").trim()} Rose Photos ${todayISO()}.png`;
   try{
     const file = new File([blob], fname, { type: "image/png" });
     if (navigator.canShare && navigator.canShare({ files: [file] })){
@@ -978,7 +1011,7 @@ function histDetail(h, os){
   }
   const ords = os.map(o => {
     const items = (o.items||[]).map(it => `<span><b>${esc(nm(it.v))}</b> ${esc(it.g)}+ × <span class="num">${Number(it.q)||0}</span></span>`).join("");
-    return `<div class="order ${esc(o.status)}"><div class="ohead"><div><h3>${esc(o.customer)}</h3><div class="ometa">${o.phone ? esc(o.phone)+" · " : ""}<span class="num">${orderQty(o)}</span> bunches</div></div><span class="pill ${esc(o.status)}">${esc(o.status)}</span></div><div class="oitems">${items}</div>${o.note ? `<div class="ometa">${esc(o.note)}</div>` : ""}</div>`;
+    return `<div class="order ${esc(o.status)}"><div class="ohead"><div><h3>${esc(o.customer)}</h3><div class="ometa">${o.phone ? esc(o.phone)+" · " : ""}<span class="num">${orderQty(o)}</span> bunches</div></div><span class="pill ${esc(o.status)}">${esc(o.status)}</span></div>${orderTable(o, nm)}${o.note ? `<div class="ometa">${esc(o.note)}</div>` : ""}</div>`;
   }).join("");
   const log = (h?.log || []).slice().sort((a,b) => b.at - a.at);
   const changes = log.length ? `<div class="chglog"><b>Changes during the day</b>${log.map(e => `<div><span class="hint">${esc(new Date(e.at).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"}))}${e.by ? " · "+esc(e.by) : ""}</span>${(e.ch||[]).map(c => `<div>${esc(c.v)} ${esc(c.g)}+ ${c.k==="booked" ? "booked" : "counted"} <b>${Number(c.a)||0} → ${Number(c.b)||0}</b></div>`).join("")}</div>`).join("")}</div>` : "";
@@ -1040,6 +1073,31 @@ $("#repeatBtn").addEventListener("click", () => {
   msg.className = "ok"; msg.textContent = "Last order copied. Check the amounts against today's stock.";
 });
 
+/* ---------- staff access (managed from the page) ---------- */
+let staff = [], unsubStaff = null;
+function renderStaff(){
+  const l = $("#staffList"); if (!l) return;
+  const list = staff.slice().sort((a,b) => String(a.email).localeCompare(String(b.email)));
+  l.innerHTML = list.length
+    ? list.map(x => `<div class="srow"><span>${esc(x.email)}</span><button type="button" class="btn ghost" data-rm="${esc(x.email)}">Remove</button></div>`).join("")
+    : `<p class="hint" style="margin:0">No extra staff added yet.</p>`;
+}
+$("#staffForm").addEventListener("submit", async e => {
+  e.preventDefault(); if (!db || !canWrite) return;
+  const m = $("#staffMsg"), email = $("#staffEmail").value.trim().toLowerCase();
+  if (!/^[^\s@\/]+@[^\s@\/]+\.[^\s@\/]+$/.test(email)){ m.textContent = "Enter a valid email address."; return; }
+  try{
+    await db.doc("staff/"+email).set({ email, addedBy: auth?.currentUser?.email || "", at: Date.now() });
+    $("#staffEmail").value = ""; m.textContent = `Added ${email}. They can sign in with that Google account now.`;
+  }catch(err){ m.textContent = err?.code === "permission-denied" ? "Only the owner can add or remove staff." : "Couldn't add. Check your connection and try again."; }
+});
+$("#staffList").addEventListener("click", async e => {
+  const b = e.target.closest("[data-rm]"); if (!b || !db) return;
+  if (!confirm("Remove access for " + b.dataset.rm + "?")) return;
+  try{ await db.doc("staff/"+b.dataset.rm).delete(); $("#staffMsg").textContent = "Removed."; }
+  catch(err){ $("#staffMsg").textContent = err?.code === "permission-denied" ? "Only the owner can add or remove staff." : "Couldn't remove. Try again."; }
+});
+
 /* ---------- boot ---------- */
 addLine();
 document.querySelectorAll("#viewSwitch button").forEach(x=>x.setAttribute("aria-pressed", x.dataset.mode===catMode));
@@ -1082,11 +1140,14 @@ $("#authBar").addEventListener("click", async e => {
   db.doc("settings/main").onSnapshot(s => { if (s.exists) settings = { ...settings, ...s.data() }; renderAll(); }, () => {});
   auth.onAuthStateChanged(user => {
     if (unsubOrders){ unsubOrders(); unsubOrders = null; }
+    if (unsubStaff){ unsubStaff(); unsubStaff = null; }
+    staff = []; renderStaff();
     orders = []; ordersLoaded = false; canWrite = false;
     applyRole(user); renderAll();
     if (!user) return;
     unsubOrders = db.collection("orders").orderBy("createdAt","desc").onSnapshot(s => {
       orders = s.docs.map(x => ({ id: x.id, ...x.data() })); ordersLoaded = true; canWrite = true;
+      if (!unsubStaff) unsubStaff = db.collection("staff").onSnapshot(q => { staff = q.docs.map(d => d.data()); renderStaff(); }, () => {});
       applyRole(user);
       if (!restoredTab){ restoredTab = true; try{ const t = localStorage.getItem("lr-tab"); if (t) showTab(t, false); }catch(e){} }
       renderAll(); syncBooked();
